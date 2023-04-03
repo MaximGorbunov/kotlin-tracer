@@ -5,7 +5,9 @@
 # Prerequisites
 *.d
 cmake-build-debug/
-cmake_build_*/
+cmake-build-release/
+cmake_build_Debug/
+cmake_build_Release/
 
 # Compiled Object files
 *.slo
