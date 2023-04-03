@@ -8,6 +8,9 @@ cmake-build-debug/
 cmake-build-release/
 cmake_build_Debug/
 cmake_build_Release/
+.cache/
+.idea/
+.settings/
 
 # Compiled Object files
 *.slo
