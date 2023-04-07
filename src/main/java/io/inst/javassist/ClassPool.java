@@ -573,7 +573,7 @@ public class ClassPool {
      * @see CtClass#getURL()
      */
     public URL find(String classname) {
-        return source.find(classname);
+        return source.get(classname);
     }
 
     /*

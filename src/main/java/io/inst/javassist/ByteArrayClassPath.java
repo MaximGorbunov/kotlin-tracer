@@ -85,7 +85,7 @@ public class ByteArrayClassPath implements ClassPath {
      * Obtains the URL.
      */
     @Override
-    public URL find(String classname) {
+    public URL get(String classname) {
         if(this.classname.equals(classname)) {
             String cname = classname.replace('.', '/') + ".class";
             try {

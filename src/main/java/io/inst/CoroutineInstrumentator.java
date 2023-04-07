@@ -150,7 +150,7 @@ public class CoroutineInstrumentator {
 
     public static native void coroutineSuspend(long coroutineId);
 
-    public static native long traceStart(long coroutineId);
+    public static native void traceStart(long coroutineId);
 
     public static native void traceEnd(long coroutineId, long spanId);
 }

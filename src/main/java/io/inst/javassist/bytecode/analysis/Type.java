@@ -447,7 +447,7 @@ public class Type {
     private Type mergeClasses(Type type) throws NotFoundException {
         CtClass superClass = findCommonSuperClass(this.clazz, type.clazz);
 
-        // If its Object, then try and find a common interface(s)
+        // If its Object, then try and get a common interface(s)
         if (superClass.getSuperclass() == null) {
             Map<String,CtClass> interfaces = findCommonInterfaces(type);
             if (interfaces.size() == 1)

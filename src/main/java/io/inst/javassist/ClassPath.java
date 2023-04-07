@@ -59,5 +59,5 @@ public interface ClassPath {
      * @param classname         a fully-qualified class name.
      * @return null if the specified class file could not be found.
      */
-    URL find(String classname);
+    URL get(String classname);
 }

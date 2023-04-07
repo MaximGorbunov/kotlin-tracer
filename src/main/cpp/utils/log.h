@@ -4,10 +4,10 @@
 #include <string>
 #include <iostream>
 
-#define log_info(msg) std::cout << (msg) << std::endl
+#define logInfo(msg) std::cout << (msg) << std::endl
 
 #ifdef DEBUG
-#define log_debug(msg) std::cout << (msg) << std::endl
+#define logDebug(msg) std::cout << (msg) << std::endl
 #else
 #define log_debug(msg)
 #endif

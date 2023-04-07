@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_compile_options(
-        "-Wall" "-Wpedantic" "-Wextra" "-fexceptions" "-Wno-unused-parameter"
+        "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
         "$<$<CONFIG:DEBUG>:-fsanitize=address;-DDEBUG>"
 )
 
@@ -18,11 +18,6 @@ string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)
 include_directories($ENV{JDK_DIR}/include/${OS}/)
 include_directories($ENV{JDK_DIR}/include/)
 include_directories(src/main/cpp)
-include_directories(src/main/cpp/jni)
-include_directories(src/main/cpp/profiler)
-include_directories(src/main/cpp/profiler/model)
-include_directories(src/main/cpp/utils)
-include_directories(src/main/cpp/vm)
 
 file(GLOB_RECURSE SOURCES_CPP ${PROJECT_SOURCE_DIR}/src/main/cpp/*.cpp)
 
@@ -47,7 +42,6 @@ enable_testing()
 add_executable(
         hello_test
         ${SOURCES_C} ${SOURCES_CPP}
-        src/test/cpp/traceStorageTest.cpp
         src/test/cpp/argsParserTest.cpp
 )
 target_link_libraries(

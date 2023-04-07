@@ -5,10 +5,11 @@
 #include <memory>
 #include <chrono>
 
-typedef struct profilerOptions {
-  std::shared_ptr<std::string> className;
-  std::shared_ptr<std::string> methodName;
+namespace kotlinTracer {
+typedef struct {
+  std::unique_ptr<std::string> className;
+  std::unique_ptr<std::string> methodName;
   std::chrono::nanoseconds profilingPeriod;
-} profilerOptions;
-
+} ProfilerOptions;
+}
 #endif //KOTLIN_TRACER_ARGS_H

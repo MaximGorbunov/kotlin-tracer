@@ -371,7 +371,7 @@ public class Loader extends ClassLoader {
      *
      * <p>This method can be overridden by a subclass of
      * <code>Loader</code>.  Note that the overridden method must not throw
-     * an exception when it just fails to find a class file.
+     * an exception when it just fails to get a class file.
      *
      * @return      null if the specified class could not be found.
      * @throws ClassNotFoundException   if an exception is thrown while

@@ -227,7 +227,7 @@ class SecurityActions extends SecurityManager
      *
      * All exposed methods are cached in a dictionary with overloaded
      * methods collected under their corresponding keys. Currently the
-     * implementation assumes there is only one, if you need find a
+     * implementation assumes there is only one, if you need get a
      * need there will have to be a compare.
      * @since 3.23 */
     class TheUnsafe

@@ -4,6 +4,7 @@
 #include <mutex>
 #include <list>
 
+namespace kotlinTracer {
 template<typename T>
 class ConcurrentList {
  private:
@@ -38,5 +39,5 @@ class ConcurrentList {
     }
   }
 };
-
+}
 #endif //KOTLIN_TRACER_CONCURRENTLIST_H

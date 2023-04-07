@@ -111,7 +111,7 @@ public class CannotCompileException extends Exception {
      * with a <code>ClassNotFoundException</code>.
      */
     public CannotCompileException(ClassNotFoundException e, String name) {
-        this("cannot find " + name, e);
+        this("cannot get " + name, e);
     }
 
     /**

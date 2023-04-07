@@ -399,7 +399,7 @@ public class BasicBlock {
 
             int i = et.size();
             while (--i >= 0) {
-                BasicBlock handler = find(blocks, et.handlerPc(i));
+                BasicBlock handler = get(blocks, et.handlerPc(i));
                 int start = et.startPc(i);
                 int end = et.endPc(i);
                 int type = et.catchType(i);

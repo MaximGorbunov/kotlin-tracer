@@ -70,7 +70,7 @@ class CtClassType extends CtClass {
     boolean wasPruned;
     boolean gcConstPool;    // if true, the constant pool entries will be garbage collected.
     ClassFile classfile;
-    byte[] rawClassfile;    // backup storage
+    byte[] rawClassfile;    // backup m_storage
 
     private Reference<CtMember.Cache> memberCache;
     private AccessorMaker accessors;
@@ -533,7 +533,7 @@ class CtClassType extends CtClass {
                             updateInnerEntry(mod, name, parent, false);
                         }
                         catch (NotFoundException e) {
-                            throw new RuntimeException("cannot find the declaring class: "
+                            throw new RuntimeException("cannot get the declaring class: "
                                                        + outName);
                         }
 

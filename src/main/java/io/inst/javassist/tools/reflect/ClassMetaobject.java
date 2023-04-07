@@ -222,7 +222,7 @@ public class ClassMetaobject implements Serializable {
                 }
             }
 
-        throw new CannotInvokeException("cannot find a method");
+        throw new CannotInvokeException("cannot get a method");
     }
 
     /**

@@ -1,23 +1,24 @@
-#include "jarLoader.h"
 #include <filesystem>
 #include <iostream>
-#include "jvm.h"
+#include <memory>
+
+#include "jarLoader.hpp"
 
 using namespace std;
 
-void JarLoader::load(const std::string &name) {
-  auto jarPath = absolute(filesystem::current_path().append(name)).string();
-  auto jvm = JVM::getInstance();
-  auto err = jvm->getJvmTi()->AddToSystemClassLoaderSearch(jarPath.c_str());
+unique_ptr<kotlinTracer::InstrumentationMetadata> kotlinTracer::JarLoader::load(const std::string &t_name,
+                                                                                std::shared_ptr<JVM> t_jvm) {
+  auto jarPath = absolute(filesystem::current_path().append(t_name)).string();
+  auto err = t_jvm->getJvmTi()->AddToSystemClassLoaderSearch(jarPath.c_str());
   if (err != JVMTI_ERROR_NONE) {
     throw runtime_error("Cannot add jar to system classloader search:" + to_string(err));
 
   }
-  auto jni = jvm->getJNIEnv();
+  auto jni = t_jvm->getJNIEnv();
   jclass inst = jni->FindClass("io/inst/CoroutineInstrumentator");
   if (inst == nullptr) {
     cout << "Cannot load instrumentation class" << endl;
-    throw runtime_error("Cannot find instrumentator class!");
+    throw runtime_error("Cannot get instrumentator class!");
   }
 
   jmethodID transformKotlinCoroutines = jni->GetStaticMethodID(inst, "transformKotlinCoroutines",
@@ -32,6 +33,6 @@ void JarLoader::load(const std::string &name) {
     cout << "Could not resolve transform tracing method" << endl;
     jni->ExceptionDescribe();
   }
-  InstrumentationMetadata metadata = {inst, transformKotlinCoroutines, transformMethod};
-  jvm->setInstrumentationMetadata(metadata);
+  return std::make_unique<InstrumentationMetadata>(InstrumentationMetadata{inst, transformKotlinCoroutines,
+                                                                           transformMethod});
 }

@@ -1,51 +1,54 @@
-#include "argsParser.h"
-
 #include <memory>
+#include "argsParser.hpp"
 
 using namespace std;
 
-shared_ptr<profilerOptions> ArgsParser::parseProfilerOptions(const shared_ptr<string> &options) {
-  shared_ptr<profilerOptions> result = std::make_shared<profilerOptions>();
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfilerOptions(const string &t_options) {
+  auto result = make_unique<ProfilerOptions>();
   result->profilingPeriod = chrono::nanoseconds(1000000);// 1ms default
   size_t currentPosition = 0;
   size_t delimiterPosition;
   do {
-    delimiterPosition = options->find(',', currentPosition);
+    delimiterPosition = t_options.find(',', currentPosition);
     if (delimiterPosition == string::npos) {
-      delimiterPosition = options->length() - 1;
+      delimiterPosition = t_options.length() - 1;
     }
-    auto keyValueDelimiterPosition = options->find('=', currentPosition);
+    auto keyValueDelimiterPosition = t_options.find('=', currentPosition);
     if (keyValueDelimiterPosition == string::npos) {
-      throw runtime_error("Incorrect options provided: " + *options +
+      throw runtime_error("Incorrect options provided: " + t_options +
           ". Use following syntax: method=x/y/z/Class.method,period=1000");
     }
-    string key = options->substr(currentPosition, keyValueDelimiterPosition - currentPosition);
-    string value = options->substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition + 1);
+    string key = t_options.substr(currentPosition, keyValueDelimiterPosition - currentPosition);
+    string value = t_options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition + 1);
     if (key == "method") {
-      ArgsParser::parseMethod(value, result);
+      result = ArgsParser::parseMethod(value, std::move(result));
     } else if (key == "period") {
-      ArgsParser::parsePeriod(value, result);
+      result = ArgsParser::parsePeriod(value, std::move(result));
     }
     currentPosition = delimiterPosition + 1;
 
-  } while (currentPosition < options->length());
+  } while (currentPosition < t_options.length());
   if (result->methodName == nullptr) {
     throw runtime_error("Method name must be provided. Use following syntax: method=x/y/z/Class.method,period=1000");
   }
   return result;
 }
 
-void ArgsParser::parseMethod(const string &value, const shared_ptr<profilerOptions> &options) {
-  auto methodDelimiter = value.find('.');
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseMethod(const string &t_option,
+                                                                                unique_ptr<ProfilerOptions> t_options) {
+  auto methodDelimiter = t_option.find('.');
   if (methodDelimiter == string::npos) {
     throw runtime_error(
-        "Provided incorrect method: " + value + ". Use following syntax package/class.method");
+        "Provided incorrect method: " + t_option + ". Use following syntax package/class.method");
   }
-  options->methodName = make_shared<string>(value.substr(methodDelimiter + 1));
-  options->className = make_shared<string>(value.substr(0, methodDelimiter));
+  t_options->methodName = make_unique<string>(t_option.substr(methodDelimiter + 1));
+  t_options->className = make_unique<string>(t_option.substr(0, methodDelimiter));
+  return t_options;
 }
 
-void ArgsParser::parsePeriod(const string &value, const shared_ptr<profilerOptions> &options) {
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parsePeriod(const string &value,
+                                                                                unique_ptr<ProfilerOptions> t_options) {
   auto intValue = stoi(value);
-  options->profilingPeriod = chrono::nanoseconds(intValue);
+  t_options->profilingPeriod = chrono::nanoseconds(intValue);
+  return t_options;
 }

@@ -3,8 +3,8 @@
 
 #include <mutex>
 #include <unordered_map>
-#include "log.h"
 
+namespace kotlinTracer {
 template<typename K, typename V>
 class ConcurrentMap {
  private:
@@ -18,9 +18,26 @@ class ConcurrentMap {
     return map.insert({key, value}).second;
   }
 
-  V& find(const K &key) {
+  V &get(const K &key) {
     std::lock_guard guard(mapMutex);
     return map[key];
+  }
+
+  V findOrInsert(const K &key) {
+    std::lock_guard guard(mapMutex);
+    auto iter = map.find(key);
+    if (iter != map.end()) {
+      return iter->second;
+    } else {
+      V value{};
+      map.insert({key, value});
+      return value;
+    }
+  }
+
+
+  bool contains(const K &key) {
+    return map.contains(key);
   }
 
   bool erase(const K &key) {
@@ -32,4 +49,5 @@ class ConcurrentMap {
     } else return false;
   }
 };
+}
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_UTILS_CONCURRENTMAP_H_

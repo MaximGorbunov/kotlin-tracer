@@ -171,7 +171,7 @@ public class AnnotationImpl implements InvocationHandler {
                 }
             }
             catch (NotFoundException e) {
-                throw new RuntimeException("cannot find a class file: "
+                throw new RuntimeException("cannot get a class file: "
                                            + classname);
             }
         }
