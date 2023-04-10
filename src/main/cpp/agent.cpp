@@ -1,4 +1,5 @@
 #include <memory>
+#include <cstring>
 
 #include "utils/argsParser.hpp"
 #include "utils/jarLoader.hpp"
@@ -10,47 +11,47 @@ using namespace std;
 // Required to be enabled for AsyncTrace usage
 
 unique_ptr<kotlinTracer::Agent> kotlinTracer::agent;
-void JNICALL ClassLoad(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv, jthread thread, jclass klass) {}
+void JNICALL ClassLoad(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread, jclass t_class) {}
 
-void JNICALL ClassFileLoadHook(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv,
-                               jclass classBeingRedefined, jobject loader,
-                               const char *name, jobject protectionDomain,
-                               jint classDataLen,
-                               const unsigned char *classData,
-                               jint *newClassDataLen,
-                               unsigned char **newClassData) {
-  kotlinTracer::agent->getInstrumentation()->instrument(jniEnv,
-                                                        name,
-                                                        classDataLen,
-                                                        classData,
-                                                        newClassDataLen,
-                                                        newClassData);
+void JNICALL ClassFileLoadHook(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv,
+                               jclass t_classBeingRedefined, jobject t_loader,
+                               const char *t_name, jobject t_protectionDomain,
+                               jint t_classDataLen,
+                               const unsigned char *t_classData,
+                               jint *t_newClassDataLen,
+                               unsigned char **t_newClassData) {
+  kotlinTracer::agent->getInstrumentation()->instrument(t_jniEnv,
+                                                        t_name,
+                                                        t_classDataLen,
+                                                        t_classData,
+                                                        t_newClassDataLen,
+                                                        t_newClassData);
 }
 
-void JNICALL ThreadStart(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv, jthread thread) {
-  kotlinTracer::agent->getJVM()->addCurrentThread(thread);
+void JNICALL ThreadStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
+  kotlinTracer::agent->getJVM()->addCurrentThread(t_thread);
 }
 
-void JNICALL VMInit(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv, jthread thread) {
-  kotlinTracer::agent->getJVM()->initializeMethodIds(jvmtiEnv, jniEnv);
+void JNICALL VMInit(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
+  kotlinTracer::agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
   auto metadata = kotlinTracer::JarLoader::load("kotlin-tracer.jar", kotlinTracer::agent->getJVM());
   kotlinTracer::agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
 }
 
-void JNICALL ClassPrepare(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv, jthread thread,
-                          jclass klass) {
-  kotlinTracer::agent->getJVM()->loadMethodsId(jvmtiEnv, jniEnv, klass);
+void JNICALL ClassPrepare(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread,
+                          jclass t_klass) {
+  kotlinTracer::agent->getJVM()->loadMethodsId(t_jvmtiEnv, t_jniEnv, t_klass);
 }
 
-void JNICALL VMStart(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv) {
+void JNICALL VMStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
   kotlinTracer::agent->getProfiler()->startProfiler();
 }
 
-JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *vm, char *options, void *reserved) {
-  if (options == nullptr || strlen(options) == 0) {
+JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reserved) {
+  if (t_options == nullptr || strlen(t_options) == 0) {
     throw runtime_error("method name required for interception!");
   }
-  string optionsStr(options);
+  string optionsStr(t_options);
   logDebug("======Kotlin tracer initialization start======");
   logDebug("Options:" + optionsStr);
   auto profilerOptions = kotlinTracer::ArgsParser::parseProfilerOptions(optionsStr);
@@ -65,11 +66,11 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *vm, char *options, void *reserved) {
   callbacks->ClassLoad = ClassLoad;
   callbacks->ClassFileLoadHook = ClassFileLoadHook;
   callbacks->VMInit = VMInit;
-  kotlinTracer::agent = make_unique<kotlinTracer::Agent>(vm, std::move(callbacks), std::move(profilerOptions));
+  kotlinTracer::agent = make_unique<kotlinTracer::Agent>(t_vm, std::move(callbacks), std::move(profilerOptions));
   return 0;
 }
 
-JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
+JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *t_vm) {
   kotlinTracer::agent.reset();
 }
 

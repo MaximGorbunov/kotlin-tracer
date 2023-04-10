@@ -1,4 +1,6 @@
 #include <memory>
+#include <stdexcept>
+
 #include "argsParser.hpp"
 
 using namespace std;

@@ -30,7 +30,7 @@ kotlinTracer::JVM::~JVM() {
   m_jvmti->DisposeEnvironment();
 }
 
-void kotlinTracer::JVM::addCurrentThread(jthread t_thread) {
+void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
   JNIEnv *env_id;
   m_vm->GetEnv((void **) &env_id, JNI_VERSION_10);
   pthread_t currentThread = pthread_self();

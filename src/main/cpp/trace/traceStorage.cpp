@@ -50,6 +50,14 @@ void kotlinTracer::TraceStorage::removeOngoingTraceInfo(const jlong &t_coroutine
   m_ongoingTraceInfoMap->erase(t_coroutineId);
 }
 
-void kotlinTracer::TraceStorage::addSuspensionInfo(const kotlinTracer::SuspensionInfo &t_suspensionInfo) {
-  m_suspensionsInfoMap->findOrInsert(t_suspensionInfo.coroutineId);
+void kotlinTracer::TraceStorage::addSuspensionInfo(std::shared_ptr<kotlinTracer::SuspensionInfo> t_suspensionInfo) {
+  auto creationLambda = []() { return make_shared<list<shared_ptr<SuspensionInfo>>>(); };
+  auto list = m_suspensionsInfoMap->findOrInsert(t_suspensionInfo->coroutineId, creationLambda);
+  list->push_back(t_suspensionInfo);
+}
+
+shared_ptr<kotlinTracer::SuspensionInfo> kotlinTracer::TraceStorage::getSuspensionInfo(jlong t_coroutineId) {
+  if (m_suspensionsInfoMap->contains(t_coroutineId)) {
+    return m_suspensionsInfoMap->get(t_coroutineId)->back();
+  } else return nullptr;
 }

@@ -1,6 +1,7 @@
 #include <dlfcn.h>
 #include <memory>
 #include <utility>
+#include <cstring>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -197,22 +198,28 @@ void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId) {
 
 void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
 
-  jthread thread;
+  ::jthread thread;
   jvmtiFrameInfo frames[20];
   jint framesCount;
   auto jvmti = m_jvm->getJvmTi();
   jvmti->GetCurrentThread(&thread);
   jvmtiError err = jvmti->GetStackTrace(thread, 0, size(frames), frames, &framesCount);
   if (err == JVMTI_ERROR_NONE && framesCount >= 1) {
+    auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{t_coroutineId, currentTimeNs(), 0,
+                                                                        make_unique<list<shared_ptr<string>>>()});
     for (int i = 0; i < framesCount; ++i) {
-      auto methodInfo = processMethodInfo(frames[i].method, frames[i].location);
-      logDebug("Executing method: " + *methodInfo);
+      suspensionInfo->suspensionStackTrace->push_back(processMethodInfo(frames[i].method, (jint) frames[i].location));
     }
+    m_storage.addSuspensionInfo(suspensionInfo);
   }
 }
 
 void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
   m_coroutineId = t_coroutineId;
+  auto suspensionInfo = m_storage.getSuspensionInfo(t_coroutineId);
+  if (suspensionInfo != nullptr) {
+    suspensionInfo->end = currentTimeNs();
+  }
 }
 
 void kotlinTracer::Profiler::coroutineCompleted(jlong t_coroutineId) {}

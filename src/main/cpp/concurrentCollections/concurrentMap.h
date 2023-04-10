@@ -23,13 +23,22 @@ class ConcurrentMap {
     return map[key];
   }
 
-  V findOrInsert(const K &key) {
+  V &find(const K &key) {
+    auto iter = map.find(key);
+    if (iter != map.end()) {
+      return iter->second;
+    } else {
+      return nullptr;
+    }
+  }
+
+  V findOrInsert(const K &key, V (creationFunc)()) {
     std::lock_guard guard(mapMutex);
     auto iter = map.find(key);
     if (iter != map.end()) {
       return iter->second;
     } else {
-      V value{};
+      V value = creationFunc();
       map.insert({key, value});
       return value;
     }

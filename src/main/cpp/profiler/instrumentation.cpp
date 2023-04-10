@@ -1,3 +1,4 @@
+#include <cstring>
 #include "instrumentation.hpp"
 #include "../utils/log.h"
 
@@ -37,21 +38,21 @@ void Instrumentation::setInstrumentationMetadata(std::unique_ptr<Instrumentation
 
 jbyteArray Instrumentation::instrumentCoroutines(const unsigned char *byteCode, int size) {
   JNIEnv *jni = m_jvm->getJNIEnv();
-  jbyteArray jarray = jni->NewByteArray(size);
-  jni->SetByteArrayRegion(jarray, 0, size, (jbyte *) byteCode);
+  jbyteArray array = jni->NewByteArray(size);
+  jni->SetByteArrayRegion(array, 0, size, (jbyte *) byteCode);
   return (jbyteArray) jni->CallStaticObjectMethod(m_instrumentMetadata->klass,
                                                   m_instrumentMetadata->instrumentCoroutinesMethod,
-                                                  jarray);
+                                                  array);
 }
 
 jbyteArray Instrumentation::instrumentMethod(const unsigned char *byteCode, int size, const std::string &methodName) {
   JNIEnv *jni = m_jvm->getJNIEnv();
-  jbyteArray jarray = jni->NewByteArray(size);
+  jbyteArray array = jni->NewByteArray(size);
   auto jMethodName = jni->NewStringUTF(methodName.c_str());
-  jni->SetByteArrayRegion(jarray, 0, size, (jbyte *) byteCode);
+  jni->SetByteArrayRegion(array, 0, size, (jbyte *) byteCode);
   return (jbyteArray) jni->CallStaticObjectMethod(m_instrumentMetadata->klass,
                                                   m_instrumentMetadata->instrumentMethod,
-                                                  jarray,
+                                                  array,
                                                   jMethodName);
 }
 

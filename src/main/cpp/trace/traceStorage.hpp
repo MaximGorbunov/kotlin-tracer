@@ -21,7 +21,8 @@ class TraceStorage {
   void addProcessedTrace(const std::shared_ptr<ProcessedTraceRecord> &t_record);
   bool addOngoingTraceInfo(const TraceInfo &t_traceInfo);
   void addCompletedTraceInfo(const TraceInfo &t_traceInfo);
-  void addSuspensionInfo(const SuspensionInfo &t_suspensionInfo);
+  void addSuspensionInfo(std::shared_ptr<SuspensionInfo> t_suspensionInfo);
+  std::shared_ptr<SuspensionInfo> getSuspensionInfo(jlong t_coroutineId);
   void removeOngoingTraceInfo(const jlong &t_coroutineId);
   TraceInfo &findOngoingTraceInfo(const jlong &t_coroutineId);
   TraceInfo &findCompletedTraceInfo(const jlong &t_coroutineId);
@@ -32,7 +33,7 @@ class TraceStorage {
   std::unique_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> m_processedList;
   std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> m_ongoingTraceInfoMap;
   std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> m_completedTraceInfoMap;
-  std::unique_ptr<ConcurrentMap<jlong, std::list<SuspensionInfo>>> m_suspensionsInfoMap;
+  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<std::list<std::shared_ptr<SuspensionInfo>>>>> m_suspensionsInfoMap;
 };
 }
 
