@@ -1,11 +1,28 @@
 plugins {
     id 'java'
+    id "org.jetbrains.kotlin.jvm" version "1.8.20"
 }
 
 repositories {
     mavenCentral()
 }
 
+ext {
+    method = project.properties['method']
+}
+
+test {
+    useJUnitPlatform()
+    testLogging.showStandardStreams = true
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.projectDir.toString() + "/cmake-build-relwithdebinfo/agent/libagent.dylib=period=100,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
+    outputs.upToDateWhen {false}
+}
+
+
 dependencies {
-    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.0")
+    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4")
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-debug:1.6.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
 }

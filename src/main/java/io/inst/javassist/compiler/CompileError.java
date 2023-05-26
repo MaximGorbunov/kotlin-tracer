@@ -40,7 +40,7 @@ public class CompileError extends Exception {
     }
 
     public CompileError(NotFoundException e) {
-        this("cannot get " + e.getMessage());
+        this("cannot find " + e.getMessage());
     }
 
     public Lex getLex() { return lex; }

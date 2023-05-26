@@ -24,6 +24,7 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shar
 }
 
 void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
+  if (!m_active) return;
   auto trace = shared_ptr<ASGCTCallTrace>((ASGCTCallTrace *) calloc(1, sizeof(ASGCTCallTrace)));
   trace->envId = m_jvm->getJNIEnv();
   trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
@@ -93,14 +94,13 @@ void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
   }
 }
 
-void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId, jlong t_spanId) {
+void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
   auto finish = kotlinTracer::currentTimeNs();
   auto traceInfo = findOngoingTrace(t_coroutineId);
   traceInfo.end = finish;
   m_storage.removeOngoingTraceInfo(traceInfo.coroutineId);
   m_storage.addCompletedTraceInfo(traceInfo);
-  logDebug("trace end: " + to_string(finish) + ":" + to_string(t_spanId));
-  logDebug(to_string(traceInfo.end - traceInfo.start));
+  logDebug("trace end: " + to_string(finish) + ":" + to_string(t_coroutineId) + " time: " + to_string(traceInfo.end - traceInfo.start));
 }
 
 void kotlinTracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {

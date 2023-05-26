@@ -13,7 +13,7 @@ extern "C" {
  * Signature: (JJ)V
  */
 [[maybe_unused]]
-JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_coroutineCreated(JNIEnv *, jclass, jlong, jlong);
+JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_coroutineCreated(JNIEnv *, jclass, jlong);
 
 /*
  * Class:     io_inst_CoroutineInstrumentator
@@ -45,7 +45,7 @@ JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_coroutineSuspend(JNI
  * Signature: (J)V
  */
 [[maybe_unused]]
-JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass, jlong);
+JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass);
 
 /*
  * Class:     io_inst_CoroutineInstrumentator
@@ -53,7 +53,7 @@ JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *,
  * Signature: (J)V
  */
 [[maybe_unused]]
-JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass, jlong, jlong);
+JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass);
 
 #ifdef __cplusplus
 }

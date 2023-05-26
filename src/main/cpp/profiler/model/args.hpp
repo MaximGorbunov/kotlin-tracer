@@ -10,6 +10,7 @@ typedef struct {
   std::unique_ptr<std::string> className;
   std::unique_ptr<std::string> methodName;
   std::chrono::nanoseconds profilingPeriod;
+  std::unique_ptr<std::string> jarPath;
 } ProfilerOptions;
 }
 #endif //KOTLIN_TRACER_ARGS_H

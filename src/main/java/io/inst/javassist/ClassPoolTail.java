@@ -371,7 +371,7 @@ final class ClassPoolTail {
         ClassPathList list = pathList;
         URL url = null;
         while (list != null) {
-            url = list.path.get(classname);
+            url = list.path.find(classname);
             if (url == null)
                 list = list.next;
             else

@@ -773,7 +773,7 @@ public class TypeChecker extends Visitor implements Opcode, TokenId {
             String signature = argTypesToString(types, dims, cnames);
             String msg;
             if (mname.equals(MethodInfo.nameInit))
-                msg = "cannot get constructor " + clazz + signature;
+                msg = "cannot find constructor " + clazz + signature;
             else
                 msg = mname + signature +  " not found in " + clazz;
 

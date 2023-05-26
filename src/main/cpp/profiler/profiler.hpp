@@ -16,7 +16,7 @@ class Profiler {
   void startProfiler();
   void stop();
   void traceStart(jlong t_coroutineId);
-  void traceEnd(jlong t_coroutineId, jlong t_spanId);
+  void traceEnd(jlong t_coroutineId);
   TraceInfo &findOngoingTrace(const jlong &t_coroutineId);
   TraceInfo &findCompletedTrace(const jlong &t_coroutineId);
   void removeOngoingTrace(const jlong &t_coroutineId);

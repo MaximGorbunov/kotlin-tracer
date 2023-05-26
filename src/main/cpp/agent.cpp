@@ -34,7 +34,7 @@ void JNICALL ThreadStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thr
 
 void JNICALL VMInit(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
   kotlinTracer::agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
-  auto metadata = kotlinTracer::JarLoader::load("kotlin-tracer.jar", kotlinTracer::agent->getJVM());
+  auto metadata = kotlinTracer::JarLoader::load(kotlinTracer::agent->getInstrumentation()->getJarPath(), "kotlin-tracer.jar", kotlinTracer::agent->getJVM());
   kotlinTracer::agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
 }
 

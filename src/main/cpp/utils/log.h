@@ -9,7 +9,7 @@
 #ifdef DEBUG
 #define logDebug(msg) std::cout << (msg) << std::endl
 #else
-#define log_debug(msg)
+#define logDebug(msg)
 #endif
 
 #endif //KOTLIN_TRACER_LOG_H

@@ -13,7 +13,7 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfile
   do {
     delimiterPosition = t_options.find(',', currentPosition);
     if (delimiterPosition == string::npos) {
-      delimiterPosition = t_options.length() - 1;
+      delimiterPosition = t_options.length();
     }
     auto keyValueDelimiterPosition = t_options.find('=', currentPosition);
     if (keyValueDelimiterPosition == string::npos) {
@@ -21,11 +21,13 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfile
           ". Use following syntax: method=x/y/z/Class.method,period=1000");
     }
     string key = t_options.substr(currentPosition, keyValueDelimiterPosition - currentPosition);
-    string value = t_options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition + 1);
+    string value = t_options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition - 1);
     if (key == "method") {
       result = ArgsParser::parseMethod(value, std::move(result));
     } else if (key == "period") {
       result = ArgsParser::parsePeriod(value, std::move(result));
+    } else if (key == "jarPath") {
+      result = ArgsParser::parseJarPath(value, std::move(result));
     }
     currentPosition = delimiterPosition + 1;
 
@@ -52,5 +54,11 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parsePeriod(
                                                                                 unique_ptr<ProfilerOptions> t_options) {
   auto intValue = stoi(value);
   t_options->profilingPeriod = chrono::nanoseconds(intValue);
+  return t_options;
+}
+
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseJarPath(const string &option,
+                                                                   unique_ptr<ProfilerOptions> t_options) {
+  t_options->jarPath = make_unique<string>(option);
   return t_options;
 }

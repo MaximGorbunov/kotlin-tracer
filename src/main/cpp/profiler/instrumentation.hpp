@@ -13,12 +13,18 @@ class Instrumentation {
  public:
   explicit Instrumentation(std::unique_ptr<ProfilerOptions> t_profilerOptions, std::shared_ptr<JVM> t_jvm) :
       m_profilerOptions(std::move(t_profilerOptions)), m_jvm(t_jvm) {};
+
+  ~Instrumentation() {
+    m_jvm->getJNIEnv()->DeleteGlobalRef(m_instrumentMetadata->klass);
+  }
+
   void instrument(JNIEnv *jniEnv, const char *t_name,
                   jint t_classDataLen,
                   const unsigned char *t_classData,
                   jint *t_newClassDataLen,
                   unsigned char **t_newClassData);
   void setInstrumentationMetadata(std::unique_ptr<InstrumentationMetadata> metadata);
+  std::unique_ptr<std::string> getJarPath();
  private:
   std::unique_ptr<ProfilerOptions> m_profilerOptions;
   std::shared_ptr<JVM> m_jvm;

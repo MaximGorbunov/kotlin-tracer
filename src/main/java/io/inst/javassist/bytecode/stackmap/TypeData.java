@@ -576,7 +576,7 @@ public abstract class TypeData {
         deep = backupDeep;
 
         // Phase 3 - The hierarchy positions are now aligned
-        // The common super class is easy to get now
+        // The common super class is easy to find now
         while (!eq(deep, shallow)) {
             deep = deep.getSuperclass();
             shallow = shallow.getSuperclass();

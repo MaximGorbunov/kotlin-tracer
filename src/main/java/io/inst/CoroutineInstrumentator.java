@@ -17,20 +17,18 @@ public class CoroutineInstrumentator {
     private static final ClassPool pool = ClassPool.getDefault();
 
     public static byte[] transformKotlinCoroutines(byte[] clazz) {
-
+        System.out.println("Inside method");
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(clazz)) {
             CtClass ctClass = pool.makeClass(byteArrayInputStream);
             CtMethod probeCoroutineCreated = ctClass.getDeclaredMethod("probeCoroutineCreated$kotlinx_coroutines_core");
             CtMethod probeCoroutineResumed = ctClass.getDeclaredMethod("probeCoroutineResumed$kotlinx_coroutines_core");
-            CtMethod probeCoroutineSuspended = ctClass.getDeclaredMethod(
-                "probeCoroutineSuspended$kotlinx_coroutines_core");
+            CtMethod probeCoroutineSuspended = ctClass.getDeclaredMethod("probeCoroutineSuspended$kotlinx_coroutines_core");
             CtMethod probeCoroutineCompleted = ctClass.getDeclaredMethod("access$probeCoroutineCompleted");
-            String coroutineCreatedSrc = "System.out.println(\"CoroutineCreated\");kotlin.coroutines.CoroutineContext context = completion.getContext();\n" +
+            String coroutineCreatedSrc = "kotlin.coroutines.CoroutineContext context = completion.getContext();\n" +
                                          "kotlinx.coroutines.CoroutineId coroutineName = (kotlinx.coroutines" +
                                          ".CoroutineId)context.get((kotlin.coroutines.CoroutineContext.Key)kotlinx" +
                                          ".coroutines.CoroutineId.Key);\n" +
-                                         "io.inst.CoroutineInstrumentator.coroutineCreated(coroutineName.getId(), io" +
-                                         ".inst.span.CoroutineTrace.getCurrentCoroutine());";
+                                         "io.inst.CoroutineInstrumentator.coroutineCreated(coroutineName.getId());";
             String coroutineSuspendedSrc = "kotlin.coroutines.CoroutineContext context = frame.getContext();\n" +
                                            "kotlinx.coroutines.Job job = (kotlinx.coroutines.Job) context.get((kotlin" +
                                            ".coroutines.CoroutineContext.Key)kotlinx.coroutines.Job.Key);\n" +
@@ -42,7 +40,6 @@ public class CoroutineInstrumentator {
                                          "kotlinx.coroutines.CoroutineId coroutineName = (kotlinx.coroutines" +
                                          ".CoroutineId)context.get((kotlin.coroutines.CoroutineContext.Key)kotlinx" +
                                          ".coroutines.CoroutineId.Key);\n" +
-                                         "io.inst.span.CoroutineTrace.coroutineResume(coroutineName.getId());\n;" +
                                          "io.inst.CoroutineInstrumentator.coroutineResumed(coroutineName.getId());";
             String coroutineCompletedSrc = "kotlin.coroutines.CoroutineContext context = owner.info.getContext();\n" +
                                            "kotlinx.coroutines.CoroutineId coroutineName = (kotlinx.coroutines" +
@@ -62,19 +59,17 @@ public class CoroutineInstrumentator {
 
     public static byte[] transformMethodForTracing(byte[] clazz, String methodName) {
         String codeAtMethodStart =
-            "spanId = io.inst.CoroutineInstrumentator.traceStart(io.inst.span.CoroutineTrace.getCurrentCoroutine());";
+            "io.inst.CoroutineInstrumentator.traceStart();";
         String codeAtMethodEnd =
-            "io.inst.CoroutineInstrumentator.traceEnd(io.inst.span.CoroutineTrace.getCurrentCoroutine(), spanId);";
+            "io.inst.CoroutineInstrumentator.traceEnd();";
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(clazz)) {
             CtClass ctClass = pool.makeClass(byteArrayInputStream);
             CtMethod method = ctClass.getDeclaredMethod(methodName);
             boolean suspendFunction = isSuspendFunction(method);
             if (suspendFunction) {
-                initializeSpanIdVariable(method);
                 instrumentSuspendFunction(method, codeAtMethodStart);
             } else {
                 method.insertBefore(codeAtMethodStart);
-                initializeSpanIdVariable(method);
             }
             method.insertAfterLastReturn(codeAtMethodEnd, false, true);
             return ctClass.toBytecode();
@@ -98,7 +93,6 @@ public class CoroutineInstrumentator {
             int byteCode = iterator.byteAt(pos);
             if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(method, iterator, previousPos)) {
                 int branchPosition = getFirstBranchPosition(iterator, pos);
-                System.out.println("First branch position:" + branchPosition);
                 method.insertAtPoisition(branchPosition + 1, src);
             }
             previousPos = pos;
@@ -137,12 +131,7 @@ public class CoroutineInstrumentator {
         return suspendFunction;
     }
 
-    private static void initializeSpanIdVariable(CtMethod method) throws CannotCompileException, NotFoundException {
-        method.addLocalVariable("spanId", pool.get("long"));
-        method.insertBefore("spanId = -1;");
-    }
-
-    public static native void coroutineCreated(long coroutineId, long parentCoroutineId);
+    public static native void coroutineCreated(long coroutineId);
 
     public static native void coroutineResumed(long coroutineId);
 
@@ -150,7 +139,7 @@ public class CoroutineInstrumentator {
 
     public static native void coroutineSuspend(long coroutineId);
 
-    public static native void traceStart(long coroutineId);
+    public static native void traceStart();
 
-    public static native void traceEnd(long coroutineId, long spanId);
+    public static native void traceEnd();
 }

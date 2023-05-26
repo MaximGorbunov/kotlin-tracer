@@ -105,7 +105,7 @@ public class URLClassPath implements ClassPath {
      * @return null if the class file could not be obtained.
      */
     @Override
-    public URL get(String classname) {
+    public URL find(String classname) {
         try {
             URLConnection con = openClassfile0(classname);
             InputStream is = con.getInputStream();

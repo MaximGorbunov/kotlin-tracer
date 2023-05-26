@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <string>
 
+#include "../trace/coroutineTrace.h"
 #include "jni_instrumentator.h"
 #include "../utils/log.h"
 #include "agent.hpp"
@@ -12,9 +13,9 @@ extern "C" {
 
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_coroutineCreated(JNIEnv *env, jclass clazz,
-                                                      jlong coroutineId,
-                                                      jlong parentId) {
+                                                      jlong coroutineId) {
   pthread_t current_thread = pthread_self();
+  long parentId = currentCoroutineId;
   auto thread_info = kotlinTracer::agent->getJVM()->findThread(current_thread);
   kotlinTracer::agent->getProfiler()->coroutineCreated(coroutineId);
   logDebug("coroutineCreated tid: " + *thread_info->name +
@@ -48,15 +49,13 @@ Java_io_inst_CoroutineInstrumentator_coroutineSuspend(JNIEnv *env, jclass clazz,
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
-Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass clazz,
-                                                jlong coroutineId) {
-  kotlinTracer::agent->getProfiler()->traceStart(coroutineId);
+Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass clazz) {
+  kotlinTracer::agent->getProfiler()->traceStart(currentCoroutineId);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
-Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass clazz,
-                                              jlong coroutineId, jlong spanId) {
-  kotlinTracer::agent->getProfiler()->traceEnd(coroutineId, spanId);
+Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass clazz) {
+  kotlinTracer::agent->getProfiler()->traceEnd(currentCoroutineId);
 }
 }
 

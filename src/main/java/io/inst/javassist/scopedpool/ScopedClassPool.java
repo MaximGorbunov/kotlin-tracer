@@ -303,7 +303,7 @@ public class ScopedClassPool extends ClassPool {
         // method invocations, the package name will be
         // the same as for the class generated from the jsp, i.e.
         // org.apache.jsp. For classes belonging to org.apache.jsp,
-        // JasperLoader does NOT delegate to its parent if it cannot get them.
+        // JasperLoader does NOT delegate to its parent if it cannot find them.
         lockInCache(ct);
         return super.toClass(ct, getClassLoader0(), domain);
     }

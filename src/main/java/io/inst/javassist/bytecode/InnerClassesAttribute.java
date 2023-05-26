@@ -162,7 +162,7 @@ public class InnerClassesAttribute extends AttributeInfo {
      * @return the index or -1 if not found.
      * @since 3.22
      */
-    public int get(String name) {
+    public int find(String name) {
         int n = tableLength();
         for (int i = 0; i < n; i++)
             if (name.equals(innerClass(i)))

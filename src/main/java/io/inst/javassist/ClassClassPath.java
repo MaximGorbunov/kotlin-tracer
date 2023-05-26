@@ -88,7 +88,7 @@ public class ClassClassPath implements ClassPath {
      * @return null if the class file could not be found.
      */
     @Override
-    public URL get(String classname) {
+    public URL find(String classname) {
         String filename = '/' + classname.replace('.', '/') + ".class";
         return thisClass.getResource(filename);
     }

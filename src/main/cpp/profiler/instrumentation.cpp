@@ -55,5 +55,8 @@ jbyteArray Instrumentation::instrumentMethod(const unsigned char *byteCode, int 
                                                   array,
                                                   jMethodName);
 }
+std::unique_ptr<std::string> Instrumentation::getJarPath() {
+  return std::move(m_profilerOptions->jarPath);
+}
 
 

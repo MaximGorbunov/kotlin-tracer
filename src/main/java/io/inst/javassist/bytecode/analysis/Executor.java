@@ -1032,7 +1032,7 @@ public class Executor implements Opcode {
         try {
             clazz = Descriptor.toCtClass(desc, classPool);
         } catch (NotFoundException e) {
-            throw new BadBytecode("Could not get class in descriptor [pos = " + lastPos + "]: " + e.getMessage());
+            throw new BadBytecode("Could not find class in descriptor [pos = " + lastPos + "]: " + e.getMessage());
         }
 
         if (clazz == null)

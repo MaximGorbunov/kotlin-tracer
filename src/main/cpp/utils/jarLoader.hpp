@@ -9,7 +9,7 @@
 namespace kotlinTracer {
 class JarLoader {
  public:
-  static std::unique_ptr<InstrumentationMetadata> load(const std::string &t_name, std::shared_ptr<JVM> t_jvm);
+  static std::unique_ptr<InstrumentationMetadata> load(std::unique_ptr<std::string> t_jarPath, const std::string &t_name, std::shared_ptr<JVM> t_jvm);
 };
 }
 #endif //KOTLIN_TRACER_JARLOADER_H

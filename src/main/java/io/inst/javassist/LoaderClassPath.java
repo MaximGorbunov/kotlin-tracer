@@ -83,7 +83,7 @@ public class LoaderClassPath implements ClassPath {
      * @return null if the class file could not be found.
      */
     @Override
-    public URL get(String classname) {
+    public URL find(String classname) {
         String cname = classname.replace('.', '/') + ".class";
         ClassLoader cl = clref.get();
         if (cl == null)
