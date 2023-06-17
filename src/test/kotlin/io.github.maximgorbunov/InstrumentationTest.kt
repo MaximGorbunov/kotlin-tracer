@@ -9,22 +9,40 @@ import org.junit.jupiter.api.BeforeAll
 class InstrumentationTest {
 
     @Test
-    fun simpleFunctionSwitchTable(): Unit = runBlocking {
+    fun simpleFunctionSwitchTableTest(): Unit = runBlocking {
             switchTableSuspend()
     }
 
     @Test
-    fun simpleFunctionWithoutSwitchTable(): Unit = runBlocking {
-    try {
-        println("simpleFunctionWithoutSwitchTable")
+    fun complexFunctionSwitchTableTest(): Unit = runBlocking {
+            switchTableComplexSuspend(2)
+    }
+
+    @Test
+    fun simpleFunctionWithoutSwitchTableTest(): Unit = runBlocking {
         suspendWithoutTable()
-        } catch(e: Throwable) { e.printStackTrace() }
+    }
+
+    @Test
+    fun plainFunctionTest() {
+        plainFunction()
+    }
+
+    fun plainFunction() {
+        Thread.sleep(100)
     }
 
     suspend fun switchTableSuspend() {
-    System.out.println("Here env:" + System.getenv("DYLD_INSERT_LIBRARIES"))
         delay(100)
         println("stub")
+    }
+
+    suspend fun switchTableComplexSuspend(a: Int): Int {
+            delay(100)
+            println("stub")
+            delay(100)
+            if (a > 0) return 2
+            else return 3
     }
 
     suspend fun suspendWithoutTable() {

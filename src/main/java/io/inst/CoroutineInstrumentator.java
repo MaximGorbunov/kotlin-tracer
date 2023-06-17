@@ -13,7 +13,8 @@ import io.inst.javassist.bytecode.Opcode;
 import io.inst.javassist.expr.ExprEditor;
 import io.inst.javassist.expr.MethodCall;
 import java.io.ByteArrayInputStream;
-import java.util.Arrays;
+
+import static io.inst.javassist.CtBehavior.isCoroutineLabelSwitch;
 
 public class CoroutineInstrumentator {
     private static final ClassPool pool = ClassPool.getDefault();
@@ -123,7 +124,7 @@ public class CoroutineInstrumentator {
             }
 
             int byteCode = iterator.byteAt(pos);
-            if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(method, iterator, previousPos)) {
+            if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(method.getDeclaringClass(), method.getMethodInfo2(), iterator, previousPos)) {
                 containsTableSwitch = true;
                 int branchPosition = getFirstBranchPosition(iterator, pos);
                 method.insertAtPoisition(branchPosition + 1, src);
@@ -134,7 +135,7 @@ public class CoroutineInstrumentator {
             method.insertBefore(src);
             replaceContinuation(method);
         } else {
-            method.insertAfterLastReturn(codeAtMethodEnd, false, true);
+            method.insertAfterLastSwitchTableBranch(codeAtMethodEnd, false, true);
         }
     }
 
@@ -144,27 +145,13 @@ public class CoroutineInstrumentator {
         return iterator.s32bitAt(index) + pos;
     }
 
-    private static boolean isCoroutineLabelSwitch(CtMethod method, CodeIterator iterator, int previousPos) {
-        if (previousPos != -1 && iterator.byteAt(previousPos) == Opcode.GETFIELD) {
-            ConstPool pool = method.getMethodInfo2().getConstPool();
-            int index = iterator.u16bitAt(previousPos + 1);
-            String className = pool.getFieldrefClassName(index);
-            String fieldName = pool.getFieldrefName(index);
-            String fieldType = pool.getFieldrefType(index);
-
-            String classQualifier = method.getDeclaringClass().getName() + "$" + method.getName();
-            return className != null && className.startsWith(classQualifier) && "label".equals(fieldName) && "I".equals(
-                    fieldType);
-        }
-        return false;
-    }
-
     private static boolean isSuspendFunction(CtMethod method) throws NotFoundException {
         boolean suspendFunction = false;
         CtClass[] types = method.getParameterTypes();
-        for (int i = 0; i < types.length; i++) {
-            if ("kotlin.coroutines.Continuation".equals(types[i].getName())) {
+        for (CtClass type : types) {
+            if ("kotlin.coroutines.Continuation".equals(type.getName())) {
                 suspendFunction = true;
+                break;
             }
         }
         return suspendFunction;

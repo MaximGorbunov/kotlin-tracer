@@ -13,16 +13,34 @@ inline void runJVMTest(const std::string& interceptMethod, const std::string& te
 TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentationForSwitchTable) {
   auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
   runJVMTest("io/github/maximgorbunov/InstrumentationTest.switchTableSuspend",
-             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionSwitchTable",
+             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionSwitchTableTest",
              tempFilePath);
   checkExecutionTime(tempFilePath, 100000000, 200000000);
+  std::filesystem::remove(tempFilePath.string());
+}
+
+TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentationForComplexSwitchTable) {
+  auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
+  runJVMTest("io/github/maximgorbunov/InstrumentationTest.switchTableComplexSuspend",
+             "io.github.maximgorbunov.InstrumentationTest.complexFunctionSwitchTableTest",
+             tempFilePath);
+  checkExecutionTime(tempFilePath, 200000000, 300000000);
   std::filesystem::remove(tempFilePath.string());
 }
 
 TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentationWithoutSwitchTable) {
   auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
   runJVMTest("io/github/maximgorbunov/InstrumentationTest.suspendWithoutTable",
-             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionWithoutSwitchTable",
+             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionWithoutSwitchTableTest",
+             tempFilePath);
+  checkExecutionTime(tempFilePath, 100000000, 200000000);
+  std::filesystem::remove(tempFilePath.string());
+}
+
+TEST(InstrumentationTest, CheckPlainFunctionInstrumentation) {
+  auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
+  runJVMTest("io/github/maximgorbunov/InstrumentationTest.plainFunction",
+             "io.github.maximgorbunov.InstrumentationTest.plainFunctionTest",
              tempFilePath);
   checkExecutionTime(tempFilePath, 100000000, 200000000);
   std::filesystem::remove(tempFilePath.string());
@@ -54,7 +72,7 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
 
 inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
   system((GRADLEW_PATH
-      + " -q -p " + PROJECT_SOURCE_DIR
+      + " -p " + PROJECT_SOURCE_DIR
       + " -Pmethod=" + interceptMethod + " test "
       + "--tests " + testName
       + " > " + tempFilePath.string()).c_str());

@@ -975,7 +975,7 @@ public abstract class CtBehavior extends CtMember {
         }
     }
 
-    public void insertAfterLastReturn(String src, boolean asFinally, boolean redundant)
+    public void insertAfterLastSwitchTableBranch(String src, boolean asFinally, boolean redundant)
             throws CannotCompileException
     {
         CtClass cc = declaringClass;
@@ -1008,7 +1008,7 @@ public abstract class CtBehavior extends CtMember {
             int adviceLen = 0;
             int advicePos = 0;
             boolean noReturn = true;
-            int lastReturnPosition = getLastReturnPosition(ca, handlerPos);
+            int lastReturnPosition = getLastSwitchTableBranchPosition(ca, handlerPos);
             while (iterator.hasNext()) {
                 int pos = iterator.next();
                 if (pos >= handlerPos)
@@ -1017,7 +1017,7 @@ public abstract class CtBehavior extends CtMember {
                 int c = iterator.byteAt(pos);
                 if ((c == Opcode.ARETURN || c == Opcode.IRETURN
                     || c == Opcode.FRETURN || c == Opcode.LRETURN
-                    || c == Opcode.DRETURN || c == Opcode.RETURN) && pos == lastReturnPosition) {
+                    || c == Opcode.DRETURN || c == Opcode.RETURN) && pos > lastReturnPosition) {
                     if (redundant) {
                         iterator.setMark2(handlerPos);
                         Bytecode bcode;
@@ -1085,20 +1085,39 @@ public abstract class CtBehavior extends CtMember {
         }
     }
 
-    private int getLastReturnPosition(CodeAttribute codeAttribute, int handlerPos) throws BadBytecode {
+    public static boolean isCoroutineLabelSwitch(CtClass declaringClass, MethodInfo method, CodeIterator iterator, int previousPos) {
+        if (previousPos != -1 && iterator.byteAt(previousPos) == Opcode.GETFIELD) {
+            ConstPool pool = method.getConstPool();
+            int index = iterator.u16bitAt(previousPos + 1);
+            String className = pool.getFieldrefClassName(index);
+            String fieldName = pool.getFieldrefName(index);
+            String fieldType = pool.getFieldrefType(index);
+
+            String classQualifier = declaringClass.getName() + "$" + method.getName();
+            return className != null && className.startsWith(classQualifier) && "label".equals(fieldName) && "I".equals(
+                    fieldType);
+        }
+        return false;
+    }
+
+    private int getLastSwitchTableBranchPosition(CodeAttribute codeAttribute, int handlerPos) throws BadBytecode {
         CodeIterator iterator = codeAttribute.iterator();
         int lastPos = -1;
+        int prevPosition = -1;
         while(iterator.hasNext()) {
             int pos = iterator.next();
             if (pos >= handlerPos)
                 break;
 
-            int c = iterator.byteAt(pos);
-            if (c == Opcode.ARETURN || c == Opcode.IRETURN
-                || c == Opcode.FRETURN || c == Opcode.LRETURN
-                || c == Opcode.DRETURN || c == Opcode.RETURN) {
-                lastPos = pos;
+            int byteCode = iterator.byteAt(pos);
+            if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(declaringClass, methodInfo, iterator, prevPosition)) {
+                int index = (pos & ~3) + 4;
+                int low = iterator.s32bitAt(index += 4);
+                int high = iterator.s32bitAt(index += 4);
+                int end = (high - low + 1) * 4 + index + 4;
+                lastPos = iterator.s32bitAt(end - 4) + pos;
             }
+            prevPosition = pos;
         }
         return lastPos;
     }
