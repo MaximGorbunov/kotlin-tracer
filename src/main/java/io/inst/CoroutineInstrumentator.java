@@ -10,8 +10,10 @@ import io.inst.javassist.bytecode.BadBytecode;
 import io.inst.javassist.bytecode.CodeIterator;
 import io.inst.javassist.bytecode.ConstPool;
 import io.inst.javassist.bytecode.Opcode;
-
+import io.inst.javassist.expr.ExprEditor;
+import io.inst.javassist.expr.MethodCall;
 import java.io.ByteArrayInputStream;
+import java.util.Arrays;
 
 public class CoroutineInstrumentator {
     private static final ClassPool pool = ClassPool.getDefault();
@@ -59,19 +61,19 @@ public class CoroutineInstrumentator {
 
     public static byte[] transformMethodForTracing(byte[] clazz, String methodName) {
         String codeAtMethodStart =
-            "io.inst.CoroutineInstrumentator.traceStart();";
+                "io.inst.CoroutineInstrumentator.traceStart();";
         String codeAtMethodEnd =
-            "io.inst.CoroutineInstrumentator.traceEnd();";
+                "io.inst.CoroutineInstrumentator.traceEnd();";
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(clazz)) {
             CtClass ctClass = pool.makeClass(byteArrayInputStream);
             CtMethod method = ctClass.getDeclaredMethod(methodName);
             boolean suspendFunction = isSuspendFunction(method);
             if (suspendFunction) {
-                instrumentSuspendFunction(method, codeAtMethodStart);
+                instrumentSuspendFunction(method, codeAtMethodStart, codeAtMethodEnd);
             } else {
                 method.insertBefore(codeAtMethodStart);
+                method.insertAfter(codeAtMethodEnd, false, true);
             }
-            method.insertAfterLastReturn(codeAtMethodEnd, false, true);
             return ctClass.toBytecode();
         } catch (Throwable e) {
             e.printStackTrace();
@@ -79,11 +81,41 @@ public class CoroutineInstrumentator {
         }
     }
 
-    private static void instrumentSuspendFunction(CtMethod method, String src)
-        throws BadBytecode, CannotCompileException {
+    private static void replaceContinuation(CtMethod method) throws NotFoundException, CannotCompileException {
+        CtClass continuationClass = method.getDeclaringClass().getClassPool().get("kotlin.coroutines.Continuation");
+        method.instrument(new ExprEditor() {
+            @Override
+            public void edit(MethodCall m) throws CannotCompileException {
+                try {
+                    CtMethod invokedMethod = m.getMethod();
+                    CtClass[] parameterTypes = invokedMethod.getParameterTypes();
+                    int continuationParameterIndex = -1;
+                    for (int i = 0; i < parameterTypes.length; i++) {
+                        if (parameterTypes[i].subtypeOf(continuationClass)) {
+                            continuationParameterIndex = i + 1;
+                            break;
+                        }
+                    }
+                    if (continuationParameterIndex > 0) {
+                        String statement = "{" +
+                                           "$" + continuationParameterIndex + "= new io.inst.TrackableContinuation($" + continuationParameterIndex + ");" +
+                                           "$_ = $proceed($$);" +
+                                           "}";
+                        m.replace(statement);
+                    }
+                } catch (NotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+    }
+
+    private static void instrumentSuspendFunction(CtMethod method, String src, String codeAtMethodEnd)
+            throws BadBytecode, CannotCompileException, NotFoundException {
         CodeIterator iterator = method.getMethodInfo().getCodeAttribute().iterator();
         int handlerPos = iterator.getCodeLength();
         int previousPos = -1;
+        boolean containsTableSwitch = false;
         while (iterator.hasNext()) {
             int pos = iterator.next();
             if (pos >= handlerPos) {
@@ -92,10 +124,17 @@ public class CoroutineInstrumentator {
 
             int byteCode = iterator.byteAt(pos);
             if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(method, iterator, previousPos)) {
+                containsTableSwitch = true;
                 int branchPosition = getFirstBranchPosition(iterator, pos);
                 method.insertAtPoisition(branchPosition + 1, src);
             }
             previousPos = pos;
+        }
+        if (!containsTableSwitch) {
+            method.insertBefore(src);
+            replaceContinuation(method);
+        } else {
+            method.insertAfterLastReturn(codeAtMethodEnd, false, true);
         }
     }
 
@@ -115,7 +154,7 @@ public class CoroutineInstrumentator {
 
             String classQualifier = method.getDeclaringClass().getName() + "$" + method.getName();
             return className != null && className.startsWith(classQualifier) && "label".equals(fieldName) && "I".equals(
-                fieldType);
+                    fieldType);
         }
         return false;
     }

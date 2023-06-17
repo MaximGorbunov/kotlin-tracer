@@ -12,7 +12,7 @@ unique_ptr<kotlinTracer::InstrumentationMetadata> kotlinTracer::JarLoader::load(
   auto jarPath = t_jarPath == nullptr
                  ? absolute(filesystem::current_path() / t_name).string()
                  : absolute(filesystem::path(*t_jarPath)).string();
-  auto err = t_jvm->getJvmTi()->AddToBootstrapClassLoaderSearch(jarPath.c_str());
+  auto err = t_jvm->getJvmTi()->AddToSystemClassLoaderSearch(jarPath.c_str());
   if (err != JVMTI_ERROR_NONE) {
     throw runtime_error("Cannot add jar to system classloader search:" + to_string(err));
   }

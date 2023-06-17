@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import kotlinx.coroutines.debug.DebugProbes
 import org.junit.jupiter.api.BeforeAll
 
-
 class InstrumentationTest {
 
     @Test
@@ -16,7 +15,10 @@ class InstrumentationTest {
 
     @Test
     fun simpleFunctionWithoutSwitchTable(): Unit = runBlocking {
+    try {
+        println("simpleFunctionWithoutSwitchTable")
         suspendWithoutTable()
+        } catch(e: Throwable) { e.printStackTrace() }
     }
 
     suspend fun switchTableSuspend() {

@@ -7,15 +7,28 @@
 
 using namespace std;
 
-TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentation) {
+inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int moreThan, int lessThan);
+inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath);
+
+TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentationForSwitchTable) {
   auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
-  auto agentPath = PROJECT_SOURCE_DIR + "/cmake-build-release/agent/libagent.dylib";
-  system((GRADLEW_PATH
-      + " -p " + PROJECT_SOURCE_DIR
-      + " -Pmethod=io/github/maximgorbunov/InstrumentationTest.switchTableSuspend test "
-      + "--tests io.github.maximgorbunov.InstrumentationTest.simpleFunctionSwitchTable "
-      +  " > "
-      + tempFilePath.string()).c_str());
+  runJVMTest("io/github/maximgorbunov/InstrumentationTest.switchTableSuspend",
+             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionSwitchTable",
+             tempFilePath);
+  checkExecutionTime(tempFilePath, 100000000, 200000000);
+  std::filesystem::remove(tempFilePath.string());
+}
+
+TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentationWithoutSwitchTable) {
+  auto tempFilePath = std::filesystem::temp_directory_path() / "test.txt";
+  runJVMTest("io/github/maximgorbunov/InstrumentationTest.suspendWithoutTable",
+             "io.github.maximgorbunov.InstrumentationTest.simpleFunctionWithoutSwitchTable",
+             tempFilePath);
+  checkExecutionTime(tempFilePath, 100000000, 200000000);
+  std::filesystem::remove(tempFilePath.string());
+}
+
+inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int moreThan, int lessThan) {
   ifstream log(tempFilePath);
   string content;
   auto elapsedTime = -1;
@@ -31,11 +44,19 @@ TEST(InstrumentationTest, CheckCoroutinesDebugProbesInstrumentation) {
         cout << elapsedTime << endl;
       }
     }
-    EXPECT_GT(elapsedTime, 100000000);
-    EXPECT_LT(elapsedTime, 200000000);
-
+    log.close();
+    EXPECT_GT(elapsedTime, moreThan);
+    EXPECT_LT(elapsedTime, lessThan);
   } else {
     throw runtime_error("Can't open temp file");
   }
-
 }
+
+inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
+  system((GRADLEW_PATH
+      + " -q -p " + PROJECT_SOURCE_DIR
+      + " -Pmethod=" + interceptMethod + " test "
+      + "--tests " + testName
+      + " > " + tempFilePath.string()).c_str());
+}
+
