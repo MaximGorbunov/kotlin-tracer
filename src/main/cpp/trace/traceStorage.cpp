@@ -5,11 +5,14 @@
 using namespace std;
 
 kotlinTracer::TraceStorage::TraceStorage()
-    : m_rawList(make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
-      m_processedList(make_unique<ConcurrentList < shared_ptr<ProcessedTraceRecord>>>()),
-      m_ongoingTraceInfoMap(make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-      m_completedTraceInfoMap(make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-      m_suspensionsInfoMap(make_unique<ConcurrentMap<jlong, std::shared_ptr<std::list<std::shared_ptr<SuspensionInfo>>>>>()) {
+    : m_rawList(make_unique<ConcurrentList < shared_ptr<RawCallTraceRecord>> > ()),
+      m_processedList(make_unique<ConcurrentList < shared_ptr<ProcessedTraceRecord>> > ()),
+      m_ongoingTraceInfoMap(make_unique<ConcurrentMap < jlong, TraceInfo>>
+()),
+m_completedTraceInfoMap(make_unique<ConcurrentMap < jlong, TraceInfo>>
+()),
+m_suspensionsInfoMap(make_unique<ConcurrentMap < jlong, std::shared_ptr<std::list<std::shared_ptr<SuspensionInfo>>>>
+>()) {
 }
 
 void kotlinTracer::TraceStorage::addRawTrace(kotlinTracer::TraceTime t_time, std::shared_ptr<ASGCTCallTrace> t_trace,

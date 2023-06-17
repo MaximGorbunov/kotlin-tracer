@@ -1,5 +1,5 @@
 add_compile_options(
-        "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-DDEBUG"
+        "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-DDEBUG"
         "$<$<CONFIG:DEBUG>:-fsanitize=address;-DDEBUG>"
 )
 

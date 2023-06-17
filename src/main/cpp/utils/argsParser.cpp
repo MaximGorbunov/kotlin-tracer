@@ -58,7 +58,7 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parsePeriod(
 }
 
 unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseJarPath(const string &option,
-                                                                   unique_ptr<ProfilerOptions> t_options) {
+                                                                                 unique_ptr<ProfilerOptions> t_options) {
   t_options->jarPath = make_unique<string>(option);
   return t_options;
 }

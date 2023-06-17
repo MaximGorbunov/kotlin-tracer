@@ -44,7 +44,6 @@ class ConcurrentMap {
     }
   }
 
-
   bool contains(const K &key) {
     return map.contains(key);
   }

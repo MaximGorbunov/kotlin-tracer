@@ -42,7 +42,7 @@ kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm)
     : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap() {
   auto libjvm_handle = dlopen("libjvm.dylib", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
-  struct sigaction action = {{nullptr}};
+  struct sigaction action = {{nullptr}, {}, 0};
   action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
   auto pFunction = [](int signo, siginfo_t *siginfo, void *ucontext) {
@@ -100,7 +100,8 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
   traceInfo.end = finish;
   m_storage.removeOngoingTraceInfo(traceInfo.coroutineId);
   m_storage.addCompletedTraceInfo(traceInfo);
-  logDebug("trace end: " + to_string(finish) + ":" + to_string(t_coroutineId) + " time: " + to_string(traceInfo.end - traceInfo.start));
+  logDebug("trace end: " + to_string(finish) + ":" + to_string(t_coroutineId) + " time: "
+               + to_string(traceInfo.end - traceInfo.start));
 }
 
 void kotlinTracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {
@@ -206,7 +207,7 @@ void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
   jvmtiError err = jvmti->GetStackTrace(thread, 0, size(frames), frames, &framesCount);
   if (err == JVMTI_ERROR_NONE && framesCount >= 1) {
     auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{t_coroutineId, currentTimeNs(), 0,
-                                                                        make_unique<list<shared_ptr<string>>>()});
+                                                                     make_unique<list<shared_ptr<string>>>()});
     for (int i = 0; i < framesCount; ++i) {
       suspensionInfo->suspensionStackTrace->push_back(processMethodInfo(frames[i].method, (jint) frames[i].location));
     }
