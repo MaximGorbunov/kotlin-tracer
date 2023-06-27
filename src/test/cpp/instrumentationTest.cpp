@@ -71,6 +71,7 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
 }
 
 inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
+  setenv("LD_PRELOAD", LIBASAN_PATH.c_str(), 1);
   system((GRADLEW_PATH
       + " -p " + PROJECT_SOURCE_DIR
       + " -Pagent=" + AGENT_PATH

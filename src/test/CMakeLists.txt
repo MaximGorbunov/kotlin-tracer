@@ -1,3 +1,7 @@
+add_compile_options("-fsanitize=address;-DDEBUG>")
+
+add_link_options("-fsanitize=address")
+
 include(FetchContent)
 FetchContent_Declare(
         googletest
@@ -12,6 +16,9 @@ enable_testing()
 get_property(AGENT_PATH GLOBAL PROPERTY AGENT_PATH)
 set(CMAKE_TEST_RESOURCES_DIR "${PROJECT_SOURCE_DIR}/test/resources/")
 set(GRADLEW_PATH "${PROJECT_SOURCE_DIR}/gradlew")
+execute_process(COMMAND gcc -print-file-name=libasan.so
+        OUTPUT_VARIABLE LIBASAN_PATH
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 configure_file(cpp/utils/config.h.in ${CMAKE_BINARY_DIR}/generated/config.h)
 
 include_directories(${PROJECT_SOURCE_DIR}/src/main/cpp ${CMAKE_BINARY_DIR}/generated/)

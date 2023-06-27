@@ -8,4 +8,6 @@
 #define PROJECT_SOURCE_DIR string("@PROJECT_SOURCE_DIR@")
 #define AGENT_PATH string("@AGENT_PATH@")
 
+#define LIBASAN_PATH string("@LIBASAN_PATH@")
+
 #endif //KOTLIN_TRACER_SRC_TEST_CPP_UTILS_CONFIG_H_

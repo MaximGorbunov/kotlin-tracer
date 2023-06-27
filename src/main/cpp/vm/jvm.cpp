@@ -79,26 +79,26 @@ void kotlinTracer::JVM::dettachThread() {
   m_vm->DetachCurrentThread();
 }
 
-void kotlinTracer::JVM::initializeMethodIds(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv) {
+void kotlinTracer::JVM::initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
   jint counter = 0;
   jclass *classes;
-  jvmtiError err = jvmtiEnv->GetLoadedClasses(&counter, &classes);
+  jvmtiError err = t_jvmtiEnv->GetLoadedClasses(&counter, &classes);
   if (err != JVMTI_ERROR_NONE) {
     printf("Failed to load classes\n");
     fflush(stdout);
   }
   for (int i = 0; i < counter; i++) {
     jclass klass = (classes)[i];
-    loadMethodsId(jvmtiEnv, jniEnv, klass);
+    loadMethodsId(t_jvmtiEnv, t_jniEnv, klass);
   }
-  jvmtiEnv->Deallocate((unsigned char *) classes);
+  t_jvmtiEnv->Deallocate((unsigned char *) classes);
 }
 
 // The jmethodIDs should be allocated. Or we'll get 0 method id
-void kotlinTracer::JVM::loadMethodsId(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv, jclass klass) {
+void kotlinTracer::JVM::loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class) {
   jint method_count = 0;
   jmethodID *methods = nullptr;
-  if (jvmtiEnv->GetClassMethods(klass, &method_count, &methods) == 0) {
-    jvmtiEnv->Deallocate((unsigned char *) methods);
+  if (t_jvmtiEnv->GetClassMethods(t_class, &method_count, &methods) == 0) {
+    t_jvmtiEnv->Deallocate((unsigned char *) methods);
   }
 }

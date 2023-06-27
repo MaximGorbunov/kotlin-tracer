@@ -25,7 +25,7 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shar
 
 void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
   if (!m_active) return;
-  auto trace = shared_ptr<ASGCTCallTrace>((ASGCTCallTrace *) calloc(1, sizeof(ASGCTCallTrace)));
+  auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace {});
   trace->envId = m_jvm->getJNIEnv();
   trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
   trace->numFrames = 0;
@@ -40,9 +40,9 @@ void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, vo
 
 kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm)
     : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap() {
-  auto libjvm_handle = dlopen("libjvm.dylib", RTLD_LAZY);
+  auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
-  struct sigaction action = {{nullptr}, {}, 0};
+  struct sigaction action = {{nullptr}, {}, 0, nullptr};
   action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
   auto pFunction = [](int signo, siginfo_t *siginfo, void *ucontext) {
@@ -82,7 +82,7 @@ void kotlinTracer::Profiler::stop() {
 }
 
 void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
-  auto charBuffer = unique_ptr<char>(new char[100]);
+  auto charBuffer = make_unique<char[]>(100);
   pthread_getname_np(pthread_self(), charBuffer.get(), 100);
   auto c = std::make_unique<string>(charBuffer.get());
   auto start = kotlinTracer::currentTimeNs();
@@ -119,8 +119,7 @@ kotlinTracer::TraceInfo &kotlinTracer::Profiler::findCompletedTrace(const jlong 
 void kotlinTracer::Profiler::processTraces() {
   auto rawRecord = m_storage.removeRawTraceHeader();
   while (rawRecord != nullptr) {
-    auto processedRecord =
-        shared_ptr<ProcessedTraceRecord>((ProcessedTraceRecord *) calloc(1, sizeof(ProcessedTraceRecord)));
+    auto processedRecord = make_shared<ProcessedTraceRecord>(ProcessedTraceRecord {});
     auto thread = m_jvm->findThread(rawRecord->thread);
     if (thread == nullptr) logInfo("Cannot get thread: " + *thread->name);
     processedRecord->time = rawRecord->time;

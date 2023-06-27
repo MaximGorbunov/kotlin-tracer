@@ -1,6 +1,6 @@
 add_compile_options(
         "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
-        "$<$<CONFIG:DEBUG>:-fsanitize=address;-DDEBUG>"
+        "$<$<CONFIG:DEBUG>:-fno-omit-frame-pointer;-fsanitize=address;-DDEBUG>"
 )
 
 add_link_options(

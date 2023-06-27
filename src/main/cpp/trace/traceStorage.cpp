@@ -17,7 +17,7 @@ m_suspensionsInfoMap(make_unique<ConcurrentMap < jlong, std::shared_ptr<std::lis
 
 void kotlinTracer::TraceStorage::addRawTrace(kotlinTracer::TraceTime t_time, std::shared_ptr<ASGCTCallTrace> t_trace,
                                              pthread_t t_thread, long long t_coroutineId) {
-  auto record = shared_ptr<RawCallTraceRecord>((RawCallTraceRecord *) calloc(1, sizeof(RawCallTraceRecord)));
+  auto record = make_shared<RawCallTraceRecord>(RawCallTraceRecord {});
   record->time = t_time;
   record->trace = std::move(t_trace);
   record->thread = t_thread;

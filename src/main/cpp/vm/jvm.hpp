@@ -32,8 +32,8 @@ class JVM {
   JNIEnv *getJNIEnv();
   void attachThread();
   void dettachThread();
-  void initializeMethodIds(jvmtiEnv *jvmtiEnv, JNIEnv *jniEnv);
-  void loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_klass);
+  void initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv);
+  void loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class);
 
  private:
   JavaVM *m_vm;
