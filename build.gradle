@@ -18,6 +18,7 @@ test {
     outputs.upToDateWhen {false}
 }
 
+test.dependsOn("jar")
 
 dependencies {
     compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4")

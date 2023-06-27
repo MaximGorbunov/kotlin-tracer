@@ -5,6 +5,7 @@
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
+#include "trace/coroutineTrace.hpp"
 #include "../utils/log.h"
 
 using namespace std;
@@ -84,11 +85,10 @@ void kotlinTracer::Profiler::stop() {
 void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
   auto charBuffer = make_unique<char[]>(100);
   pthread_getname_np(pthread_self(), charBuffer.get(), 100);
-  auto c = std::make_unique<string>(charBuffer.get());
   auto start = kotlinTracer::currentTimeNs();
   kotlinTracer::TraceInfo trace_info{t_coroutineId, start, 0};
   if (m_storage.addOngoingTraceInfo(trace_info)) {
-    logDebug("trace start: " + to_string(start) + ":" + *c);
+    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(t_coroutineId));
   } else {
     throw runtime_error("Found trace that already started");
   }
@@ -197,7 +197,7 @@ void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId) {
 }
 
 void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
-
+  kotlinTracer::coroutineSuspended(t_coroutineId);
   ::jthread thread;
   jvmtiFrameInfo frames[20];
   jint framesCount;
@@ -215,6 +215,7 @@ void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
 }
 
 void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
+  kotlinTracer::coroutineResumed(t_coroutineId);
   m_coroutineId = t_coroutineId;
   auto suspensionInfo = m_storage.getSuspensionInfo(t_coroutineId);
   if (suspensionInfo != nullptr) {
@@ -222,4 +223,6 @@ void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
   }
 }
 
-void kotlinTracer::Profiler::coroutineCompleted(jlong t_coroutineId) {}
+void kotlinTracer::Profiler::coroutineCompleted(jlong t_coroutineId) {
+  kotlinTracer::coroutineCompleted();
+}

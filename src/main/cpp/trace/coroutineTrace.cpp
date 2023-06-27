@@ -1,11 +1,15 @@
-#include "coroutineTrace.h"
+#include "coroutineTrace.hpp"
 
 thread_local long currentCoroutineId = NOT_FOUND;
 
-void coroutineSuspended(long t_coroutineId, long t_spanId) {
+void kotlinTracer::coroutineSuspended(long t_coroutineId) {
   currentCoroutineId = NOT_FOUND;
 }
 
-void coroutineResumed(long t_coroutineId, long t_spanId) {
+void kotlinTracer::coroutineResumed(long t_coroutineId) {
   currentCoroutineId = t_coroutineId;
+}
+
+void kotlinTracer::coroutineCompleted() {
+  currentCoroutineId = NOT_FOUND;
 }

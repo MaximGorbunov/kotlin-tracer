@@ -64,7 +64,7 @@ public class CoroutineInstrumentator {
         String codeAtMethodStart =
                 "io.inst.CoroutineInstrumentator.traceStart();";
         String codeAtMethodEnd =
-                "io.inst.CoroutineInstrumentator.traceEnd();";
+                "io.inst.CoroutineInstrumentator.traceEnd(-2L);";
         try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(clazz)) {
             CtClass ctClass = pool.makeClass(byteArrayInputStream);
             CtMethod method = ctClass.getDeclaredMethod(methodName);
@@ -167,5 +167,5 @@ public class CoroutineInstrumentator {
 
     public static native void traceStart();
 
-    public static native void traceEnd();
+    public static native void traceEnd(long coroutineId);
 }

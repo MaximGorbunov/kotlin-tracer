@@ -49,7 +49,7 @@ TEST(InstrumentationTest, CheckPlainFunctionInstrumentation) {
 inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int moreThan, int lessThan) {
   ifstream log(tempFilePath);
   string content;
-  auto elapsedTime = -1;
+  auto elapsedTime = -1L;
   if (log.is_open()) {
     while (log) {
       getline(log, content);
@@ -58,7 +58,7 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
         auto timeStr = string("time: ");
         auto timePosition = content.find(timeStr);
         if (timePosition == string::npos) throw runtime_error("can't find time in log");
-        elapsedTime = stoi(content.substr(timePosition + timeStr.length()));
+        elapsedTime = stol(content.substr(timePosition + timeStr.length()));
         cout << elapsedTime << endl;
       }
     }
@@ -73,7 +73,7 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
 inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
   setenv("LD_PRELOAD", LIBASAN_PATH.c_str(), 1);
   system((GRADLEW_PATH
-      + " -p " + PROJECT_SOURCE_DIR
+      + " -q -p " + PROJECT_SOURCE_DIR
       + " -Pagent=" + AGENT_PATH
       + " -Pmethod=" + interceptMethod + " test "
       + ""

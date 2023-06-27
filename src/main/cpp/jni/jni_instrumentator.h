@@ -53,7 +53,7 @@ JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *,
  * Signature: (J)V
  */
 [[maybe_unused]]
-JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass);
+JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass clazz, jlong t_coroutineId);
 
 #ifdef __cplusplus
 }
