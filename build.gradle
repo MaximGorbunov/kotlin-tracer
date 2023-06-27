@@ -14,7 +14,7 @@ ext {
 test {
     useJUnitPlatform()
     testLogging.showStandardStreams = true
-    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.projectDir.toString() + "/cmake-build-relwithdebinfo/agent/libagent.dylib=period=100,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=100,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
     outputs.upToDateWhen {false}
 }
 

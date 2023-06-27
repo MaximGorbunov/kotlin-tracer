@@ -73,7 +73,9 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
 inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
   system((GRADLEW_PATH
       + " -p " + PROJECT_SOURCE_DIR
+      + " -Pagent=" + AGENT_PATH
       + " -Pmethod=" + interceptMethod + " test "
+      + ""
       + "--tests " + testName
       + " > " + tempFilePath.string()).c_str());
 }

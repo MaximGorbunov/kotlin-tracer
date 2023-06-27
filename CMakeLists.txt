@@ -7,8 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 link_directories($ENV{JDK_DIR}/lib/server/)
 link_libraries(jvm)
 
-add_subdirectory(src/main ./agent/)
-
-#Testing
 enable_testing()
+add_subdirectory(src/main ./agent/)
 add_subdirectory(src/test)

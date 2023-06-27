@@ -9,9 +9,11 @@ FetchContent_MakeAvailable(googletest)
 
 enable_testing()
 
+get_property(AGENT_PATH GLOBAL PROPERTY AGENT_PATH)
 set(CMAKE_TEST_RESOURCES_DIR "${PROJECT_SOURCE_DIR}/test/resources/")
 set(GRADLEW_PATH "${PROJECT_SOURCE_DIR}/gradlew")
 configure_file(cpp/utils/config.h.in ${CMAKE_BINARY_DIR}/generated/config.h)
+
 include_directories(${PROJECT_SOURCE_DIR}/src/main/cpp ${CMAKE_BINARY_DIR}/generated/)
 include(GoogleTest)
 

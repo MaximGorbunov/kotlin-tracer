@@ -1,5 +1,5 @@
 add_compile_options(
-        "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-DDEBUG"
+        "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
         "$<$<CONFIG:DEBUG>:-fsanitize=address;-DDEBUG>"
 )
 
@@ -15,4 +15,9 @@ include_directories(cpp/)
 
 file(GLOB_RECURSE SOURCES_CPP cpp/*.cpp)
 
-add_library(agent SHARED ${SOURCES_CPP})
+set(NAME "agent")
+
+add_library(${NAME} SHARED ${SOURCES_CPP})
+
+set_property(GLOBAL PROPERTY AGENT_PATH "${CMAKE_CURRENT_BINARY_DIR}/lib${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+message("Here ${OUTPUT_NAME}")
