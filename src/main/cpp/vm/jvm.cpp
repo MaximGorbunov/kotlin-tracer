@@ -9,7 +9,7 @@ kotlinTracer::JVM::JVM(JavaVM *t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(t_
                                                                          m_threads(new list<shared_ptr<ThreadInfo>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
   this->m_vm->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
-  m_jvmti = shared_ptr<jvmtiEnv>(pJvmtiEnv);
+  m_jvmti = pJvmtiEnv;
   jvmtiCapabilities capabilities;
   capabilities.can_generate_garbage_collection_events = 1;
   capabilities.can_generate_all_class_hook_events = 1;
@@ -60,7 +60,7 @@ shared_ptr<kotlinTracer::ThreadInfo> kotlinTracer::JVM::findThread(const pthread
   return nullptr;
 }
 
-std::shared_ptr<jvmtiEnv> kotlinTracer::JVM::getJvmTi() {
+jvmtiEnv* kotlinTracer::JVM::getJvmTi() {
   return m_jvmti;
 }
 

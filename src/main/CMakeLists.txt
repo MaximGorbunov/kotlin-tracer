@@ -20,4 +20,3 @@ set(NAME "agent")
 add_library(${NAME} SHARED ${SOURCES_CPP})
 
 set_property(GLOBAL PROPERTY AGENT_PATH "${CMAKE_CURRENT_BINARY_DIR}/lib${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")
-message("Here ${OUTPUT_NAME}")

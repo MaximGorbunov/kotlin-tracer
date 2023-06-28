@@ -28,7 +28,7 @@ class JVM {
   void addCurrentThread(jthread t_thread);
   std::shared_ptr<std::list<std::shared_ptr<ThreadInfo>>> getThreads();
   std::shared_ptr<ThreadInfo> findThread(const pthread_t &t_thread);
-  std::shared_ptr<jvmtiEnv> getJvmTi();
+  jvmtiEnv* getJvmTi();
   JNIEnv *getJNIEnv();
   void attachThread();
   void dettachThread();
@@ -37,7 +37,7 @@ class JVM {
 
  private:
   JavaVM *m_vm;
-  std::shared_ptr<jvmtiEnv> m_jvmti;
+  jvmtiEnv* m_jvmti;
   std::mutex m_threadListMutex;
   std::shared_ptr<std::list<std::shared_ptr<ThreadInfo>>> m_threads;
 };

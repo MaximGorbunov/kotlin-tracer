@@ -127,7 +127,7 @@ public class CoroutineInstrumentator {
             if (byteCode == Opcode.TABLESWITCH && isCoroutineLabelSwitch(method.getDeclaringClass(), method.getMethodInfo2(), iterator, previousPos)) {
                 containsTableSwitch = true;
                 int branchPosition = getFirstBranchPosition(iterator, pos);
-                method.insertAtPoisition(branchPosition + 1, src);
+                method.insertAtPoisition(branchPosition, src);
             }
             previousPos = pos;
         }

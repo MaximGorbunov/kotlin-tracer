@@ -19,10 +19,10 @@ set(GRADLEW_PATH "${PROJECT_SOURCE_DIR}/gradlew")
 
 if (APPLE)
     set(ASAN_NAME "libclang_rt.asan_osx_dynamic.dylib")
-endif (APPLE)
-if (LINUX)
+elseif (UNIX)
+    message("LINUX HERE")
     set(ASAN_NAME "libasan.so")
-endif (LINUX)
+endif (APPLE)
 execute_process(COMMAND ${CMAKE_C_COMPILER} -print-file-name=${ASAN_NAME}
         OUTPUT_VARIABLE LIBASAN_PATH
         OUTPUT_STRIP_TRAILING_WHITESPACE)
