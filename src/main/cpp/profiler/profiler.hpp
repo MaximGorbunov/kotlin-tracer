@@ -11,14 +11,13 @@
 namespace kotlinTracer {
 class Profiler {
  public:
-  static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> t_jvm);
+  static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);
   static std::shared_ptr<Profiler> getInstance();
   void startProfiler();
   void stop();
   void traceStart(jlong t_coroutineId);
   void traceEnd(jlong t_coroutineId);
   TraceInfo &findOngoingTrace(const jlong &t_coroutineId);
-  TraceInfo &findCompletedTrace(const jlong &t_coroutineId);
   void removeOngoingTrace(const jlong &t_coroutineId);
   void coroutineCreated(jlong t_coroutineId);
   void coroutineSuspended(jlong t_coroutineId);
@@ -33,8 +32,9 @@ class Profiler {
   TraceStorage m_storage;
   std::unordered_map<jmethodID, std::shared_ptr<std::string>> m_methodInfoMap;
   bool m_active;
+  std::chrono::nanoseconds m_threshold;
 
-  explicit Profiler(std::shared_ptr<JVM> t_jvm);
+  Profiler(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);
   void signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext);
   void processTraces();
   std::shared_ptr<std::string> processMethodInfo(jmethodID t_methodId,

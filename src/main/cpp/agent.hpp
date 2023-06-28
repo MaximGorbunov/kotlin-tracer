@@ -17,7 +17,7 @@ class Agent {
         std::unique_ptr<jvmtiEventCallbacks> t_callbacks,
         std::unique_ptr<ProfilerOptions> t_profilerOptions)
       : m_jvm(std::make_shared<JVM>(t_vm, t_callbacks.get())),
-        m_profiler(Profiler::create(m_jvm)),
+        m_profiler(Profiler::create(m_jvm, t_profilerOptions->threshold)),
         m_instrumentation(std::make_unique<Instrumentation>(std::move(t_profilerOptions), m_jvm)) {};
 
   ~Agent() {

@@ -15,7 +15,11 @@ class ArgsParser {
                                                              std::unique_ptr<ProfilerOptions> t_options);
   static inline std::unique_ptr<ProfilerOptions> parsePeriod(const std::string &option,
                                                              std::unique_ptr<ProfilerOptions> t_options);
+  static inline std::unique_ptr<ProfilerOptions> parseThreshold(const std::string &option,
+                                                             std::unique_ptr<ProfilerOptions> t_options);
   static inline std::unique_ptr<ProfilerOptions> parseJarPath(const std::string &option,
+                                                              std::unique_ptr<ProfilerOptions> t_options);
+  static inline std::unique_ptr<ProfilerOptions> parseOutputPath(const std::string &option,
                                                               std::unique_ptr<ProfilerOptions> t_options);
 };
 }

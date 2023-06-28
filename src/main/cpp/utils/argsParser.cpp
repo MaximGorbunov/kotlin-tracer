@@ -1,5 +1,6 @@
 #include <memory>
 #include <stdexcept>
+#include <filesystem>
 
 #include "argsParser.hpp"
 
@@ -28,12 +29,19 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfile
       result = ArgsParser::parsePeriod(value, std::move(result));
     } else if (key == "jarPath") {
       result = ArgsParser::parseJarPath(value, std::move(result));
+    } else if (key == "outputPath") {
+      result = ArgsParser::parseOutputPath(value, std::move(result));
+    } else if (key == "threshold") {
+      result = ArgsParser::parseThreshold(value, std::move(result));
     }
     currentPosition = delimiterPosition + 1;
 
   } while (currentPosition < t_options.length());
   if (result->methodName == nullptr) {
     throw runtime_error("Method name must be provided. Use following syntax: method=x/y/z/Class.method,period=1000");
+  }
+  if (result->outputPath == nullptr) {
+    result->outputPath = make_unique<string>(std::filesystem::current_path().string());
   }
   return result;
 }
@@ -57,8 +65,21 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parsePeriod(
   return t_options;
 }
 
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseThreshold(const string &value,
+                                                                                   unique_ptr<ProfilerOptions> t_options) {
+  auto intValue = stoi(value);
+  t_options->threshold = duration_cast<chrono::nanoseconds>(chrono::milliseconds(intValue));
+  return t_options;
+}
+
 unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseJarPath(const string &option,
                                                                                  unique_ptr<ProfilerOptions> t_options) {
   t_options->jarPath = make_unique<string>(option);
+  return t_options;
+}
+
+unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseOutputPath(const std::string &option,
+                                                                                    std::unique_ptr<ProfilerOptions> t_options) {
+  t_options->outputPath = make_unique<string>(option);
   return t_options;
 }

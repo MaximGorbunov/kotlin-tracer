@@ -17,9 +17,9 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::getInstance() {
   return kotlinTracer::Profiler::instance;
 }
 
-std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shared_ptr<kotlinTracer::JVM> t_jvm) {
+std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shared_ptr<kotlinTracer::JVM> t_jvm, std::chrono::nanoseconds t_threshold) {
   if (instance == nullptr) {
-    instance = shared_ptr<kotlinTracer::Profiler>(new kotlinTracer::Profiler(std::move(t_jvm)));
+    instance = shared_ptr<kotlinTracer::Profiler>(new kotlinTracer::Profiler(std::move(t_jvm), t_threshold));
   }
   return instance;
 }
@@ -39,8 +39,8 @@ void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, vo
   }
 }
 
-kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm)
-    : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap() {
+kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm, std::chrono::nanoseconds t_threshold)
+    : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap(), m_threshold(t_threshold) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
   struct sigaction action {};
@@ -98,10 +98,31 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
   auto finish = kotlinTracer::currentTimeNs();
   auto traceInfo = findOngoingTrace(t_coroutineId);
   traceInfo.end = finish;
-  m_storage.removeOngoingTraceInfo(traceInfo.coroutineId);
-  m_storage.addCompletedTraceInfo(traceInfo);
+  removeOngoingTrace(traceInfo.coroutineId);
+  auto elapsedTime = traceInfo.end - traceInfo.start;
   logDebug("trace end: " + to_string(finish) + ":" + to_string(t_coroutineId) + " time: "
-               + to_string(traceInfo.end - traceInfo.start));
+               + to_string(elapsedTime));
+  logDebug("threshold: " + to_string(m_threshold.count()));
+  if (elapsedTime > m_threshold.count()) {
+    auto suspensions = m_storage.getSuspensions(t_coroutineId);
+    cout << "[Kotlin-tracer]===============================================\n";
+    cout << "[Kotlin-tracer] Trace info: \n";
+    cout << "[Kotlin-tracer] Time: " << elapsedTime << "\n";
+    if (suspensions != nullptr) {
+      cout << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
+      for (auto &suspension : *suspensions) {
+        cout << "[Kotlin-tracer]===============================================\n";
+        cout << "[Kotlin-tracer] Suspended time time: " << to_string(suspension->end - suspension->start) << "ns\n";
+        cout << "[Kotlin-tracer] Suspend stack trace: \n";
+        for (auto &frame : *suspension->suspensionStackTrace) {
+          cout << *frame << "\n";
+        }
+      }
+    } else {
+      cout << "[Kotlin-tracer] Suspensions count: 0\n";
+    }
+    cout << "[Kotlin-tracer]===============================================" << endl;
+  }
 }
 
 void kotlinTracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {
@@ -110,10 +131,6 @@ void kotlinTracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {
 
 kotlinTracer::TraceInfo &kotlinTracer::Profiler::findOngoingTrace(const jlong &coroutineId) {
   return m_storage.findOngoingTraceInfo(coroutineId);
-}
-
-kotlinTracer::TraceInfo &kotlinTracer::Profiler::findCompletedTrace(const jlong &coroutineId) {
-  return m_storage.findCompletedTraceInfo(coroutineId);
 }
 
 void kotlinTracer::Profiler::processTraces() {
@@ -217,7 +234,7 @@ void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
 void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
   kotlinTracer::coroutineResumed(t_coroutineId);
   m_coroutineId = t_coroutineId;
-  auto suspensionInfo = m_storage.getSuspensionInfo(t_coroutineId);
+  auto suspensionInfo = m_storage.getLastSuspensionInfo(t_coroutineId);
   if (suspensionInfo != nullptr) {
     suspensionInfo->end = currentTimeNs();
   }

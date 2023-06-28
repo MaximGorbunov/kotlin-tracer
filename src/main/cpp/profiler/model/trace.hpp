@@ -37,5 +37,12 @@ typedef struct SuspensionInfo {
   TraceTime end;
   std::unique_ptr<std::list<std::shared_ptr<std::string>>> suspensionStackTrace;
 } SuspensionInfo;
+
+typedef struct ProcessedTraceInfo {
+  jlong coroutineId{};
+  TraceTime start{};
+  TraceTime end{};
+  ConcurrentList<SuspensionInfo> suspensions{};
+} ProcessedTraceInfo;
 }
 #endif //KOTLIN_TRACER_TRACE_H
