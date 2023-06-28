@@ -13,6 +13,10 @@ ext {
 
 test {
     useJUnitPlatform()
+    def dyldInsert = "" + project.properties['dyldInsert']
+    if (dyldInsert != null && !dyldInsert.isEmpty()) {
+        environment "DYLD_INSERT_LIBRARIES", dyldInsert
+    }
     testLogging.showStandardStreams = true
     jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=100,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
     outputs.upToDateWhen {false}

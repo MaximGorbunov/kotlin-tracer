@@ -73,10 +73,12 @@ inline void checkExecutionTime(const std::filesystem::path &tempFilePath, int mo
 inline void runJVMTest(const std::string& interceptMethod, const std::string& testName, std::filesystem::path &tempFilePath) {
   setenv("LD_PRELOAD", LIBASAN_PATH.c_str(), 1);
   system((GRADLEW_PATH
-      + " -q -p " + PROJECT_SOURCE_DIR
+      + " -p " + PROJECT_SOURCE_DIR
+#ifdef __APPLE__
+      + " -PdyldInsert=" + LIBASAN_PATH
+#endif
       + " -Pagent=" + AGENT_PATH
       + " -Pmethod=" + interceptMethod + " test "
-      + ""
       + "--tests " + testName
       + " > " + tempFilePath.string()).c_str());
 }

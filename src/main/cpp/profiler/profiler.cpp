@@ -43,7 +43,7 @@ kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm)
     : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap() {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
-  struct sigaction action = {{nullptr}, {}, 0, nullptr};
+  struct sigaction action {};
   action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
   auto pFunction = [](int signo, siginfo_t *siginfo, void *ucontext) {
