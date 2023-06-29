@@ -1,6 +1,6 @@
-add_compile_options("-fsanitize=address;-DDEBUG>")
+add_compile_options("-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
 
-add_link_options("-fsanitize=address")
+add_link_options("-fsanitize=address;-fsanitize=undefined")
 
 include(FetchContent)
 FetchContent_Declare(

@@ -38,6 +38,23 @@ class ConcurrentList {
       return value;
     }
   }
+
+  T back() {
+      std::lock_guard guard(listMutex);
+      return list.back();
+  }
+
+  size_t size() {
+      return list.size();
+  }
+
+  std::list<T>::iterator begin() {
+      return list.begin();
+  }
+
+    std::list<T>::iterator end() {
+        return list.end();
+    }
 };
 }
 #endif //KOTLIN_TRACER_CONCURRENTLIST_H

@@ -26,15 +26,13 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shar
 
 void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
   if (!m_active) return;
-  auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace {});
-  trace->envId = m_jvm->getJNIEnv();
-  trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
-  trace->numFrames = 0;
-  m_asyncTracePtr(trace.get(), 30, t_ucontext);
-  if (trace->numFrames < 0) {
+  ASGCTCallTrace trace {};
+  trace.envId = m_jvm->getJNIEnv();
+  m_asyncTracePtr(&trace, 30, t_ucontext);
+  if (trace.numFrames < 0) {
     logDebug("[Kotlin-tracer] frames not found: " + tickToMessage(trace->numFrames));
   }
-  if (trace->numFrames > 0) {
+  if (trace.numFrames > 0) {
     getInstance()->m_storage.addRawTrace(kotlinTracer::currentTimeMs(), trace, pthread_self(), m_coroutineId);
   }
 }
@@ -184,8 +182,8 @@ shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId,
       logDebug("Error finding class name: " + to_string(err));
     }
     string line = to_string(lineno);
-    const shared_ptr<string> &method = make_shared<string>(className + '.' + name + signature);
-    m_methodInfoMap[methodId] = method;
+    shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
+    m_methodInfoMap.insert({methodId, method});
     return make_shared<string>(*method + ':' + line);
   } else {
     string line = to_string(lineno);

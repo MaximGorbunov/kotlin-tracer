@@ -22,7 +22,7 @@ class TraceStorage {
   bool addOngoingTraceInfo(const TraceInfo &t_traceInfo);
   void addSuspensionInfo(const std::shared_ptr<SuspensionInfo>& t_suspensionInfo);
   std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong t_coroutineId);
-  std::shared_ptr<std::list<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong t_coroutineId);
+  std::shared_ptr<kotlinTracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong t_coroutineId);
   void removeOngoingTraceInfo(const jlong &t_coroutineId);
   TraceInfo &findOngoingTraceInfo(const jlong &t_coroutineId);
   std::shared_ptr<RawCallTraceRecord> removeRawTraceHeader();
@@ -31,7 +31,7 @@ class TraceStorage {
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> m_rawList;
   std::unique_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> m_processedList;
   std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> m_ongoingTraceInfoMap;
-  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<std::list<std::shared_ptr<SuspensionInfo>>>>> m_suspensionsInfoMap;
+  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<kotlinTracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>>>> m_suspensionsInfoMap;
 };
 }
 

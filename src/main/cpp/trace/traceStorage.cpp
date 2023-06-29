@@ -9,7 +9,7 @@ TraceStorage::TraceStorage()
     : m_rawList(make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
       m_processedList(make_unique<ConcurrentList<shared_ptr<ProcessedTraceRecord>>>()),
       m_ongoingTraceInfoMap(make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-      m_suspensionsInfoMap(make_unique<ConcurrentMap<jlong, shared_ptr<list<shared_ptr<SuspensionInfo>>>>>()) {}
+      m_suspensionsInfoMap(make_unique<ConcurrentMap<jlong, shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>>>>()) {}
 
 void TraceStorage::addRawTrace(TraceTime t_time, shared_ptr<ASGCTCallTrace> t_trace,
                                pthread_t t_thread, long long t_coroutineId) {
@@ -43,13 +43,12 @@ void TraceStorage::removeOngoingTraceInfo(const jlong &t_coroutineId) {
 }
 
 void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &t_suspensionInfo) {
-  auto creationLambda = []() { return make_shared<list<shared_ptr<SuspensionInfo>>>(); };
+  auto creationLambda = []() { return shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>>(new ConcurrentList<shared_ptr<SuspensionInfo>>()); };
   auto list = m_suspensionsInfoMap->findOrInsert(t_suspensionInfo->coroutineId, creationLambda);
   list->push_back(t_suspensionInfo);
 }
 
-shared_ptr<list<shared_ptr<SuspensionInfo>>> TraceStorage::getSuspensions(
-    jlong t_coroutineId) {
+shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>> TraceStorage::getSuspensions(jlong t_coroutineId) {
   if (m_suspensionsInfoMap->contains(t_coroutineId)) {
     return m_suspensionsInfoMap->get(t_coroutineId);
   } else return {nullptr};
