@@ -76,7 +76,8 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reser
 
 JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *t_vm) {
   lock_guard guard(kotlinTracer::agentMutex);
-  kotlinTracer::agent.reset();
+  kotlinTracer::agent.reset(nullptr);
+  logDebug("End of cleanup");
 }
 
 shared_ptr<kotlinTracer::JVM> kotlinTracer::Agent::getJVM() {

@@ -2,6 +2,7 @@
 #include <memory>
 #include <utility>
 #include <cstring>
+#include <sstream>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -119,9 +120,15 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
 
 void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringstream &output) {
   auto suspensions = m_storage.getSuspensions(t_coroutineId);
-  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
+  std::function<void(shared_ptr<SuspensionInfo>)>
+      suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
+    auto suspendTime = suspension->end - suspension->start;
     output << "[Kotlin-tracer]===============================================\n";
-    output << "[Kotlin-tracer] Suspended time: " << to_string(suspension->end - suspension->start) << "ns\n";
+    if (suspendTime >= 0) {
+      output << "[Kotlin-tracer] Suspended time: " << to_string(suspendTime) << "ns\n";
+    } else {
+      output << "[Kotlin-tracer] Suspended time: NOT_ENDED\n";
+    }
     output << "[Kotlin-tracer] Suspend stack trace: \n";
     for (auto &frame : *suspension->suspensionStackTrace) {
       output << *frame << "\n";
@@ -137,13 +144,11 @@ void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringst
     std::function<void(jlong)> childCoroutinePrint = [&output, this](jlong childCoroutine) {
       printSuspensions(childCoroutine, output);
     };
-    if (m_storage.containsChildCoroutineStorage(t_coroutineId)) {
-      auto children = m_storage.getChildCoroutines(t_coroutineId);
-      output << "[Kotlin-tracer] Children count: " << children->size()  << "\n";
-      children->forEach(childCoroutinePrint);
-    } else {
-      output << "[Kotlin-tracer] Children count: 0\n";
-    }
+    auto children = m_storage.getChildCoroutines(t_coroutineId);
+    output << "[Kotlin-tracer] Children count: " << children->size() << "\n";
+    children->forEach(childCoroutinePrint);
+  } else {
+    output << "[Kotlin-tracer] Children count: 0\n";
   }
 }
 
@@ -234,6 +239,7 @@ std::string kotlinTracer::Profiler::tickToMessage(jint t_ticks) {
 void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId, jlong t_parentId) {
   if (m_storage.containsChildCoroutineStorage(t_parentId)) {
     m_storage.addChildCoroutine(t_coroutineId, t_parentId);
+    m_storage.createChildCoroutineStorage(t_coroutineId);
   }
 }
 

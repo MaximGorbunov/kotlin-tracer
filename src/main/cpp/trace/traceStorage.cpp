@@ -67,7 +67,7 @@ shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong t_coroutine
 }
 
 shared_ptr<ConcurrentList<jlong>> TraceStorage::getChildCoroutines(jlong t_coroutineId) {
-  return std::move(m_childCoroutinesMap->get(t_coroutineId));
+  return m_childCoroutinesMap->get(t_coroutineId);
 }
 
 void TraceStorage::addChildCoroutine(jlong t_coroutineId, jlong t_parentCoroutineId) {
@@ -75,7 +75,7 @@ void TraceStorage::addChildCoroutine(jlong t_coroutineId, jlong t_parentCoroutin
 }
 
 void TraceStorage::createChildCoroutineStorage(jlong t_coroutineId) {
-  m_childCoroutinesMap->insert(t_coroutineId, make_shared<ConcurrentList<jlong>>());
+  m_childCoroutinesMap->insert(t_coroutineId, std::make_shared<ConcurrentList<jlong>>());
 }
 
 bool TraceStorage::containsChildCoroutineStorage(jlong t_coroutineId) {
