@@ -3,6 +3,7 @@
 
 #include <mutex>
 #include <list>
+#include <functional>
 
 namespace kotlinTracer {
 template<typename T>

@@ -49,8 +49,7 @@ shared_ptr<kotlinTracer::ConcurrentList<shared_ptr<kotlinTracer::ThreadInfo>>> k
 }
 
 shared_ptr<kotlinTracer::ThreadInfo> kotlinTracer::JVM::findThread(const pthread_t &t_thread) {
-  list<shared_ptr<ThreadInfo>>::iterator threadInfo;
-  std::function<bool(shared_ptr<ThreadInfo>)> findThread = [t_thread](shared_ptr<ThreadInfo> threadInfo) {
+  std::function<bool(shared_ptr<ThreadInfo>)> findThread = [t_thread](const shared_ptr<ThreadInfo>& threadInfo) {
     return pthread_equal(threadInfo->id, t_thread);
   };
   return m_threads->find(findThread);
