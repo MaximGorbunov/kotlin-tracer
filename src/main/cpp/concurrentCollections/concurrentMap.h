@@ -24,6 +24,7 @@ class ConcurrentMap {
   }
 
   V &find(const K &key) {
+    std::lock_guard guard(mapMutex);
     auto iter = map.find(key);
     if (iter != map.end()) {
       return iter->second;
@@ -45,13 +46,14 @@ class ConcurrentMap {
   }
 
   bool contains(const K &key) {
+    std::lock_guard guard(mapMutex);
     return map.contains(key);
   }
 
   bool erase(const K &key) {
+    std::lock_guard guard(mapMutex);
     auto iter = map.find(key);
     if (iter != map.end()) {
-      std::lock_guard guard(mapMutex);
       map.erase(iter);
       return true;
     } else return false;

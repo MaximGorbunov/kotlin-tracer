@@ -2,6 +2,7 @@
 #include <memory>
 #include <utility>
 #include <cstring>
+#include <sstream>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -17,7 +18,8 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::getInstance() {
   return kotlinTracer::Profiler::instance;
 }
 
-std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shared_ptr<kotlinTracer::JVM> t_jvm, std::chrono::nanoseconds t_threshold) {
+std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shared_ptr<kotlinTracer::JVM> t_jvm,
+                                                                       std::chrono::nanoseconds t_threshold) {
   if (instance == nullptr) {
     instance = shared_ptr<kotlinTracer::Profiler>(new kotlinTracer::Profiler(std::move(t_jvm), t_threshold));
   }
@@ -26,13 +28,15 @@ std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shar
 
 void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
   if (!m_active) return;
-  ASGCTCallTrace trace {};
-  trace.envId = m_jvm->getJNIEnv();
-  m_asyncTracePtr(&trace, 30, t_ucontext);
-  if (trace.numFrames < 0) {
+  auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace{});
+  trace->envId = m_jvm->getJNIEnv();
+  trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
+  trace->numFrames = 0;
+  m_asyncTracePtr(trace.get(), 30, t_ucontext);
+  if (trace->numFrames < 0) {
     logDebug("[Kotlin-tracer] frames not found: " + tickToMessage(trace->numFrames));
   }
-  if (trace.numFrames > 0) {
+  if (trace->numFrames > 0) {
     getInstance()->m_storage.addRawTrace(kotlinTracer::currentTimeMs(), trace, pthread_self(), m_coroutineId);
   }
 }
@@ -41,7 +45,7 @@ kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm, std::chron
     : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap(), m_threshold(t_threshold) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
-  struct sigaction action {};
+  struct sigaction action{};
   action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
   auto pFunction = [](int signo, siginfo_t *siginfo, void *ucontext) {
@@ -60,12 +64,13 @@ void kotlinTracer::Profiler::startProfiler() {
   m_profilerThread = std::make_unique<thread>([this] {
     logDebug("[Kotlin-tracer] Profiler thread started");
     m_jvm->attachThread();
+    std::function<void(shared_ptr<ThreadInfo>)> lambda = [](const shared_ptr<ThreadInfo> &thread) {
+      pthread_kill(thread->id, SIGVTALRM);
+    };
     while (m_active) {
       logDebug("active: " + to_string(m_active));
       auto threads = m_jvm->getThreads();
-      for (const auto &thread : *threads) {
-        pthread_kill(thread->id, SIGVTALRM);
-      }
+      threads->forEach(lambda);
       this->processTraces();
       this_thread::sleep_for(1000ms);
     }
@@ -103,23 +108,27 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
   logDebug("threshold: " + to_string(m_threshold.count()));
   if (elapsedTime > m_threshold.count()) {
     auto suspensions = m_storage.getSuspensions(t_coroutineId);
-    cout << "[Kotlin-tracer]===============================================\n";
-    cout << "[Kotlin-tracer] Trace info: \n";
-    cout << "[Kotlin-tracer] Time: " << elapsedTime << "\n";
-    if (suspensions != nullptr) {
-      cout << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
-      for (auto &suspension : *suspensions) {
-        cout << "[Kotlin-tracer]===============================================\n";
-        cout << "[Kotlin-tracer] Suspended time time: " << to_string(suspension->end - suspension->start) << "ns\n";
-        cout << "[Kotlin-tracer] Suspend stack trace: \n";
-        for (auto &frame : *suspension->suspensionStackTrace) {
-          cout << *frame << "\n";
-        }
+    std::stringstream output;
+    output << "[Kotlin-tracer]===============================================\n";
+    output << "[Kotlin-tracer] Trace info: \n";
+    output << "[Kotlin-tracer] Time: " << elapsedTime << "\n";
+    std::function<void(shared_ptr<SuspensionInfo>)>
+        suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
+      output << "[Kotlin-tracer]===============================================\n";
+      output << "[Kotlin-tracer] Suspended time time: " << to_string(suspension->end - suspension->start) << "ns\n";
+      output << "[Kotlin-tracer] Suspend stack trace: \n";
+      for (auto &frame : *suspension->suspensionStackTrace) {
+        output << *frame << "\n";
       }
+    };
+    if (suspensions != nullptr) {
+      output << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
+      suspensions->forEach(suspensionPrint);
     } else {
-      cout << "[Kotlin-tracer] Suspensions count: 0\n";
+      output << "[Kotlin-tracer] Suspensions count: 0\n";
     }
-    cout << "[Kotlin-tracer]===============================================" << endl;
+    output << "[Kotlin-tracer]===============================================";
+//    cout << output.str() << endl;
   }
 }
 
@@ -134,7 +143,7 @@ kotlinTracer::TraceInfo &kotlinTracer::Profiler::findOngoingTrace(const jlong &c
 void kotlinTracer::Profiler::processTraces() {
   auto rawRecord = m_storage.removeRawTraceHeader();
   while (rawRecord != nullptr) {
-    auto processedRecord = make_shared<ProcessedTraceRecord>(ProcessedTraceRecord {});
+    auto processedRecord = make_shared<ProcessedTraceRecord>(ProcessedTraceRecord{});
     auto thread = m_jvm->findThread(rawRecord->thread);
     if (thread == nullptr) logInfo("Cannot get thread: " + *thread->name);
     processedRecord->time = rawRecord->time;
@@ -153,8 +162,7 @@ void kotlinTracer::Profiler::processTraces() {
 }
 
 shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
-  auto methodIterator = m_methodInfoMap.find(methodId);
-  if (methodIterator == m_methodInfoMap.end()) {
+  if (!m_methodInfoMap.contains(methodId)) {
     auto jvmti = m_jvm->getJvmTi();
     char *pName;
     char *pSignature;
@@ -183,11 +191,11 @@ shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId,
     }
     string line = to_string(lineno);
     shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
-    m_methodInfoMap.insert({methodId, method});
+    m_methodInfoMap.insert(methodId, method);
     return make_shared<string>(*method + ':' + line);
   } else {
     string line = to_string(lineno);
-    return make_shared<string>(*methodIterator->second + ':' + line);
+    return make_shared<string>(*m_methodInfoMap.get(methodId) + ':' + line);
   }
 }
 

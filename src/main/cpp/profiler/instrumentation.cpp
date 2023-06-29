@@ -56,7 +56,8 @@ jbyteArray Instrumentation::instrumentMethod(const unsigned char *byteCode, int 
                                                   jMethodName);
 }
 std::unique_ptr<std::string> Instrumentation::getJarPath() {
-  return std::move(m_profilerOptions->jarPath);
+  if (m_profilerOptions->jarPath == nullptr) return {nullptr};
+  else return make_unique<std::string>(*m_profilerOptions->jarPath);
 }
 
 

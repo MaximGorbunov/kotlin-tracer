@@ -1,12 +1,13 @@
 #include "jvm.hpp"
 
 #include <memory>
+#include <utility>
 #include "../utils/log.h"
 
 using namespace std;
 
-kotlinTracer::JVM::JVM(JavaVM *t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(t_vm), m_threadListMutex(),
-                                                                         m_threads(new list<shared_ptr<ThreadInfo>>()) {
+kotlinTracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(std::move(t_vm)),
+                                                                         m_threads(make_shared<kotlinTracer::ConcurrentList<shared_ptr<ThreadInfo>>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
   this->m_vm->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
   m_jvmti = pJvmtiEnv;
@@ -26,9 +27,7 @@ kotlinTracer::JVM::JVM(JavaVM *t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(t_
   m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
 }
 
-kotlinTracer::JVM::~JVM() {
-  m_jvmti->DisposeEnvironment();
-}
+kotlinTracer::JVM::~JVM() = default;
 
 void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
   JNIEnv *env_id;
@@ -41,23 +40,20 @@ void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
     return;
   }
   auto name = make_shared<string>(info.name);
-  lock_guard<mutex> guard(m_threadListMutex);
   auto threadInfo = std::make_shared<ThreadInfo>(ThreadInfo{name, currentThread});
   m_threads->push_back(threadInfo);
 }
 
-shared_ptr<list<shared_ptr<kotlinTracer::ThreadInfo>>> kotlinTracer::JVM::getThreads() {
+shared_ptr<kotlinTracer::ConcurrentList<shared_ptr<kotlinTracer::ThreadInfo>>> kotlinTracer::JVM::getThreads() {
   return m_threads;
 }
 
 shared_ptr<kotlinTracer::ThreadInfo> kotlinTracer::JVM::findThread(const pthread_t &t_thread) {
   list<shared_ptr<ThreadInfo>>::iterator threadInfo;
-  for (threadInfo = m_threads->begin(); threadInfo != m_threads->end(); threadInfo++) {
-    if (pthread_equal((*threadInfo)->id, t_thread)) {
-      return *threadInfo;
-    }
-  }
-  return nullptr;
+  std::function<bool(shared_ptr<ThreadInfo>)> findThread = [t_thread](shared_ptr<ThreadInfo> threadInfo) {
+    return pthread_equal(threadInfo->id, t_thread);
+  };
+  return m_threads->find(findThread);
 }
 
 jvmtiEnv* kotlinTracer::JVM::getJvmTi() {

@@ -13,7 +13,7 @@
 namespace kotlinTracer {
 class Agent {
  public:
-  Agent(JavaVM *t_vm,
+  Agent(const std::shared_ptr<JavaVM>& t_vm,
         std::unique_ptr<jvmtiEventCallbacks> t_callbacks,
         std::unique_ptr<ProfilerOptions> t_profilerOptions)
       : m_jvm(std::make_shared<JVM>(t_vm, t_callbacks.get())),
@@ -28,6 +28,7 @@ class Agent {
   std::shared_ptr<JVM> getJVM();
   std::shared_ptr<Instrumentation> getInstrumentation();
   std::shared_ptr<Profiler> getProfiler();
+  void stop();
 
  private:
   std::shared_ptr<JVM> m_jvm;
@@ -36,5 +37,6 @@ class Agent {
 };
 
 extern std::unique_ptr<Agent> agent;
+extern std::mutex agentMutex;
 }
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_AGENT_HPP_

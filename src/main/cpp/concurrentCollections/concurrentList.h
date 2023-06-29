@@ -40,21 +40,30 @@ class ConcurrentList {
   }
 
   T back() {
-      std::lock_guard guard(listMutex);
-      return list.back();
+    std::lock_guard guard(listMutex);
+    return list.back();
   }
 
   size_t size() {
-      return list.size();
+    return list.size();
   }
 
-  std::list<T>::iterator begin() {
-      return list.begin();
-  }
-
-    std::list<T>::iterator end() {
-        return list.end();
+  void forEach(std::function<void(T)> &lambda) {
+    std::lock_guard guard(listMutex);
+    for (auto &element: list) {
+      lambda(element);
     }
+  }
+
+  T find(std::function<bool(T)> &lambda) {
+    std::lock_guard guard(listMutex);
+    for (auto &element: list) {
+      if (lambda(element)) {
+        return element;
+      }
+    }
+    return nullptr;
+  }
 };
 }
 #endif //KOTLIN_TRACER_CONCURRENTLIST_H

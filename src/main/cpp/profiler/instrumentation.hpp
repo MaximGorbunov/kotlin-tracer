@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include <utility>
 #include <jni.h>
 
 #include "../vm/jvm.hpp"
@@ -12,11 +13,9 @@ namespace kotlinTracer {
 class Instrumentation {
  public:
   explicit Instrumentation(std::unique_ptr<ProfilerOptions> t_profilerOptions, std::shared_ptr<JVM> t_jvm) :
-      m_profilerOptions(std::move(t_profilerOptions)), m_jvm(t_jvm) {};
+      m_profilerOptions(std::move(t_profilerOptions)), m_jvm(std::move(t_jvm)) {};
 
-  ~Instrumentation() {
-    m_jvm->getJNIEnv()->DeleteGlobalRef(m_instrumentMetadata->klass);
-  }
+  ~Instrumentation() = default;
 
   void instrument(JNIEnv *jniEnv, const char *t_name,
                   jint t_classDataLen,

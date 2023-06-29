@@ -7,8 +7,12 @@
 using namespace std;
 
 unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfilerOptions(const string &t_options) {
-  auto result = make_unique<ProfilerOptions>();
-  result->profilingPeriod = chrono::nanoseconds(1000000);// 1ms default
+  chrono::nanoseconds period(1000000);// 1ms default
+  chrono::nanoseconds threshold(0);
+  unique_ptr<string> method;
+  unique_ptr<string> klass;
+  unique_ptr<string> jarPath;
+  unique_ptr<string> outputPath;
   size_t currentPosition = 0;
   size_t delimiterPosition;
   do {
@@ -24,62 +28,53 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfile
     string key = t_options.substr(currentPosition, keyValueDelimiterPosition - currentPosition);
     string value = t_options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition - 1);
     if (key == "method") {
-      result = ArgsParser::parseMethod(value, std::move(result));
+      auto [className, methodName] = ArgsParser::parseMethod(value);
+      method = std::move(methodName);
+      klass = std::move(className);
     } else if (key == "period") {
-      result = ArgsParser::parsePeriod(value, std::move(result));
+      period = ArgsParser::parsePeriod(value);
     } else if (key == "jarPath") {
-      result = ArgsParser::parseJarPath(value, std::move(result));
+      jarPath = ArgsParser::parseJarPath(value);
     } else if (key == "outputPath") {
-      result = ArgsParser::parseOutputPath(value, std::move(result));
+      outputPath = ArgsParser::parseOutputPath(value);
     } else if (key == "threshold") {
-      result = ArgsParser::parseThreshold(value, std::move(result));
+      threshold = ArgsParser::parseThreshold(value);
     }
     currentPosition = delimiterPosition + 1;
-
   } while (currentPosition < t_options.length());
-  if (result->methodName == nullptr) {
+  if (method == nullptr) {
     throw runtime_error("Method name must be provided. Use following syntax: method=x/y/z/Class.method,period=1000");
   }
-  if (result->outputPath == nullptr) {
-    result->outputPath = make_unique<string>(std::filesystem::current_path().string());
+  if (outputPath == nullptr) {
+    outputPath = make_unique<string>(std::filesystem::current_path().string());
   }
-  return result;
+  return make_unique<ProfilerOptions>(std::move(klass), std::move(method), period, threshold,
+                                                         std::move(jarPath), std::move(outputPath));
 }
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseMethod(const string &t_option,
-                                                                                unique_ptr<ProfilerOptions> t_options) {
+std::tuple<std::unique_ptr<string>,
+           std::unique_ptr<string>> kotlinTracer::ArgsParser::parseMethod(const string &t_option) {
   auto methodDelimiter = t_option.find('.');
   if (methodDelimiter == string::npos) {
     throw runtime_error(
         "Provided incorrect method: " + t_option + ". Use following syntax package/class.method");
   }
-  t_options->methodName = make_unique<string>(t_option.substr(methodDelimiter + 1));
-  t_options->className = make_unique<string>(t_option.substr(0, methodDelimiter));
-  return t_options;
+  return {make_unique<string>(t_option.substr(0, methodDelimiter)),
+          make_unique<string>(t_option.substr(methodDelimiter + 1))};
 }
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parsePeriod(const string &value,
-                                                                                unique_ptr<ProfilerOptions> t_options) {
-  auto intValue = stoi(value);
-  t_options->profilingPeriod = chrono::nanoseconds(intValue);
-  return t_options;
+chrono::nanoseconds kotlinTracer::ArgsParser::parsePeriod(const string &value) {
+  return chrono::nanoseconds(stoi(value));
 }
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseThreshold(const string &value,
-                                                                                   unique_ptr<ProfilerOptions> t_options) {
-  auto intValue = stoi(value);
-  t_options->threshold = duration_cast<chrono::nanoseconds>(chrono::milliseconds(intValue));
-  return t_options;
+chrono::nanoseconds kotlinTracer::ArgsParser::parseThreshold(const string &value) {
+  return duration_cast<chrono::nanoseconds>(chrono::milliseconds(stoi(value)));
 }
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseJarPath(const string &option,
-                                                                                 unique_ptr<ProfilerOptions> t_options) {
-  t_options->jarPath = make_unique<string>(option);
-  return t_options;
+unique_ptr<string> kotlinTracer::ArgsParser::parseJarPath(const string &option) {
+  return make_unique<string>(option);
 }
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseOutputPath(const std::string &option,
-                                                                                    std::unique_ptr<ProfilerOptions> t_options) {
-  t_options->outputPath = make_unique<string>(option);
-  return t_options;
+unique_ptr<string> kotlinTracer::ArgsParser::parseOutputPath(const std::string &option) {
+  return make_unique<string>(option);
 }
