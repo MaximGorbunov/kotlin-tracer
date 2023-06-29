@@ -26,7 +26,6 @@ typedef struct InstrumentationMetadata {
 class JVM {
  public:
   JVM(std::shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks);
-  ~JVM();
   void addCurrentThread(jthread t_thread);
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> getThreads();
   std::shared_ptr<ThreadInfo> findThread(const pthread_t &t_thread);

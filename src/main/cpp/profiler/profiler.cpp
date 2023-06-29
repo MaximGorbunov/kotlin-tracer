@@ -2,7 +2,6 @@
 #include <memory>
 #include <utility>
 #include <cstring>
-#include <sstream>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -68,7 +67,6 @@ void kotlinTracer::Profiler::startProfiler() {
       pthread_kill(thread->id, SIGVTALRM);
     };
     while (m_active) {
-      logDebug("active: " + to_string(m_active));
       auto threads = m_jvm->getThreads();
       threads->forEach(lambda);
       this->processTraces();
@@ -90,6 +88,7 @@ void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
   pthread_getname_np(pthread_self(), charBuffer.get(), 100);
   auto start = kotlinTracer::currentTimeNs();
   kotlinTracer::TraceInfo trace_info{t_coroutineId, start, 0};
+  m_storage.createChildCoroutineStorage(t_coroutineId);
   if (m_storage.addOngoingTraceInfo(trace_info)) {
     logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(t_coroutineId));
   } else {
@@ -107,28 +106,44 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
                + to_string(elapsedTime));
   logDebug("threshold: " + to_string(m_threshold.count()));
   if (elapsedTime > m_threshold.count()) {
-    auto suspensions = m_storage.getSuspensions(t_coroutineId);
     std::stringstream output;
     output << "[Kotlin-tracer]===============================================\n";
     output << "[Kotlin-tracer] Trace info: \n";
+    output << "[Kotlin-tracer] Coroutine id: " << t_coroutineId << "\n";
     output << "[Kotlin-tracer] Time: " << elapsedTime << "\n";
-    std::function<void(shared_ptr<SuspensionInfo>)>
-        suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
-      output << "[Kotlin-tracer]===============================================\n";
-      output << "[Kotlin-tracer] Suspended time time: " << to_string(suspension->end - suspension->start) << "ns\n";
-      output << "[Kotlin-tracer] Suspend stack trace: \n";
-      for (auto &frame : *suspension->suspensionStackTrace) {
-        output << *frame << "\n";
-      }
-    };
-    if (suspensions != nullptr) {
-      output << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
-      suspensions->forEach(suspensionPrint);
-    } else {
-      output << "[Kotlin-tracer] Suspensions count: 0\n";
-    }
+    printSuspensions(t_coroutineId, output);
     output << "[Kotlin-tracer]===============================================";
-//    cout << output.str() << endl;
+    cout << output.str() << endl;
+  }
+}
+
+void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringstream &output) {
+  auto suspensions = m_storage.getSuspensions(t_coroutineId);
+  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
+    output << "[Kotlin-tracer]===============================================\n";
+    output << "[Kotlin-tracer] Suspended time: " << to_string(suspension->end - suspension->start) << "ns\n";
+    output << "[Kotlin-tracer] Suspend stack trace: \n";
+    for (auto &frame : *suspension->suspensionStackTrace) {
+      output << *frame << "\n";
+    }
+  };
+  if (suspensions != nullptr) {
+    output << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
+    suspensions->forEach(suspensionPrint);
+  } else {
+    output << "[Kotlin-tracer] Suspensions count: 0\n";
+  }
+  if (m_storage.containsChildCoroutineStorage(t_coroutineId)) {
+    std::function<void(jlong)> childCoroutinePrint = [&output, this](jlong childCoroutine) {
+      printSuspensions(childCoroutine, output);
+    };
+    if (m_storage.containsChildCoroutineStorage(t_coroutineId)) {
+      auto children = m_storage.getChildCoroutines(t_coroutineId);
+      output << "[Kotlin-tracer] Children count: " << children->size()  << "\n";
+      children->forEach(childCoroutinePrint);
+    } else {
+      output << "[Kotlin-tracer] Children count: 0\n";
+    }
   }
 }
 
@@ -201,22 +216,25 @@ shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId,
 
 std::string kotlinTracer::Profiler::tickToMessage(jint t_ticks) {
   switch (t_ticks) {
-    case 0 : return "ticks_no_Java_frame";
-    case -1 : return "ticks_no_class_load";
-    case -2 : return "ticks_GC_active";
-    case -3 : return "ticks_unknown_not_Java";
-    case -4 : return "ticks_not_walkable_not_Java";
-    case -5 : return "ticks_unknown_Java";
-    case -6 : return "ticks_not_walkable_Java";
-    case -7 : return "ticks_unknown_state";
-    case -8 : return "ticks_thread_exit";
-    case -9 : return "ticks_deopt";
-    case -10 : return "ticks_safepoint";
-    default : return "unknown_error";
+    case 0 :return "ticks_no_Java_frame";
+    case -1 :return "ticks_no_class_load";
+    case -2 :return "ticks_GC_active";
+    case -3 :return "ticks_unknown_not_Java";
+    case -4 :return "ticks_not_walkable_not_Java";
+    case -5 :return "ticks_unknown_Java";
+    case -6 :return "ticks_not_walkable_Java";
+    case -7 :return "ticks_unknown_state";
+    case -8 :return "ticks_thread_exit";
+    case -9 :return "ticks_deopt";
+    case -10 :return "ticks_safepoint";
+    default :return "unknown_error";
   }
 }
 
-void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId) {
+void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId, jlong t_parentId) {
+  if (m_storage.containsChildCoroutineStorage(t_parentId)) {
+    m_storage.addChildCoroutine(t_coroutineId, t_parentId);
+  }
 }
 
 void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
@@ -231,7 +249,8 @@ void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
     auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{t_coroutineId, currentTimeNs(), 0,
                                                                      make_unique<list<shared_ptr<string>>>()});
     for (int i = 0; i < framesCount; ++i) {
-      suspensionInfo->suspensionStackTrace->push_back(processMethodInfo(frames[i].method, (jint) frames[i].location));
+      suspensionInfo->suspensionStackTrace->push_back(
+          processMethodInfo(frames[i].method, (jint) frames[i].location));
     }
     m_storage.addSuspensionInfo(suspensionInfo);
   }

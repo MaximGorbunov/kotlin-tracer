@@ -27,8 +27,6 @@ kotlinTracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks
   m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
 }
 
-kotlinTracer::JVM::~JVM() = default;
-
 void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
   JNIEnv *env_id;
   m_vm->GetEnv((void **) &env_id, JNI_VERSION_10);

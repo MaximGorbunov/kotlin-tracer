@@ -70,7 +70,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reser
   callbacks->ClassLoad = ClassLoad;
   callbacks->ClassFileLoadHook = ClassFileLoadHook;
   callbacks->VMInit = VMInit;
-  kotlinTracer::agent = make_unique<kotlinTracer::Agent>(std::shared_ptr<JavaVM>(t_vm), std::move(callbacks), std::move(profilerOptions));
+  kotlinTracer::agent = make_unique<kotlinTracer::Agent>(std::shared_ptr<JavaVM>(t_vm, [](JavaVM* vm){}), std::move(callbacks), std::move(profilerOptions));
   return 0;
 }
 

@@ -37,6 +37,7 @@ public class TrackableContinuation<T> implements Continuation<T> {
     public void resumeWith(@NotNull Object o) {
         CoroutineContext context = getContext();
         Object coroutineId = context.get(key);
+        continuation.resumeWith(o);
         try {
             CoroutineInstrumentator.traceEnd((Long)idGetter.invoke(coroutineId));
         } catch (IllegalAccessException | InvocationTargetException e) {
@@ -44,6 +45,5 @@ public class TrackableContinuation<T> implements Continuation<T> {
             throw new RuntimeException(e);
         }
 
-        continuation.resumeWith(o);
     }
 }

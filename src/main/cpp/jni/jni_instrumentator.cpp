@@ -16,7 +16,7 @@ Java_io_inst_CoroutineInstrumentator_coroutineCreated(JNIEnv *env, jclass clazz,
   auto thread_info = kotlinTracer::agent->getJVM()->findThread(current_thread);
   std::lock_guard guard(kotlinTracer::agentMutex);
   if (kotlinTracer::agent != nullptr) {
-    kotlinTracer::agent->getProfiler()->coroutineCreated(coroutineId);
+    kotlinTracer::agent->getProfiler()->coroutineCreated(coroutineId, currentCoroutineId);
     logDebug("coroutineCreated tid: " + *thread_info->name +
         " cid: " + to_string(coroutineId) +
         " from parentId: " + to_string(currentCoroutineId) + '\n');

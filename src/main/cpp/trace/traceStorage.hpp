@@ -26,11 +26,16 @@ class TraceStorage {
   void removeOngoingTraceInfo(const jlong &t_coroutineId);
   TraceInfo &findOngoingTraceInfo(const jlong &t_coroutineId);
   std::shared_ptr<RawCallTraceRecord> removeRawTraceHeader();
+  std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong t_coroutineId);
+  void addChildCoroutine(jlong t_coroutineId, jlong t_parentCoroutineId);
+  void createChildCoroutineStorage(jlong t_coroutineId);
+  bool containsChildCoroutineStorage(jlong t_coroutineId);
 
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> m_rawList;
   std::unique_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> m_processedList;
   std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> m_ongoingTraceInfoMap;
+  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> m_childCoroutinesMap;
   std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<kotlinTracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>>>> m_suspensionsInfoMap;
 };
 }

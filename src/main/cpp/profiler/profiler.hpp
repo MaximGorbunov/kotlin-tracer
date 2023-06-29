@@ -19,7 +19,7 @@ class Profiler {
   void traceEnd(jlong t_coroutineId);
   TraceInfo &findOngoingTrace(const jlong &t_coroutineId);
   void removeOngoingTrace(const jlong &t_coroutineId);
-  void coroutineCreated(jlong t_coroutineId);
+  void coroutineCreated(jlong t_coroutineId, jlong t_parentId);
   void coroutineSuspended(jlong t_coroutineId);
   void coroutineResumed(jlong t_coroutineId);
   void coroutineCompleted(jlong t_coroutineId);
@@ -40,6 +40,7 @@ class Profiler {
   std::shared_ptr<std::string> processMethodInfo(jmethodID t_methodId,
                                                  jint t_lineno);
   static inline std::string tickToMessage(jint t_ticks);
+  void printSuspensions(jlong t_coroutineId, std::stringstream &output);
 };
 }
 #endif // KOTLIN_TRACER_PROFILER_H
