@@ -8,7 +8,7 @@
 #include "trace/traceStorage.hpp"
 #include "../vm/jvm.hpp"
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 class Profiler {
  public:
   static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);

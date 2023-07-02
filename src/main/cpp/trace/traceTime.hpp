@@ -4,7 +4,7 @@
 #include <sys/time.h>
 #include <chrono>
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 typedef long long TraceTime;
 
 TraceTime currentTimeMs();

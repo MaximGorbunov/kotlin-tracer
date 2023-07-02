@@ -3,15 +3,15 @@
 #ifndef TRACE_H
 #define TRACE_H
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 typedef struct {
-  jint lineno;         // line number in the source file
-  jmethodID methodId; // method executed in this frame
+  jint line_number;         // line number in the source file
+  jmethodID method_id; // method executed in this frame
 } ASGCTCallFrame;
 
 typedef struct {
-  JNIEnv *envId;          // Env where trace was recorded
-  jint numFrames;         // number of frames in this trace
+  JNIEnv *env_id;          // Env where trace was recorded
+  jint num_frames;         // number of frames in this trace
   ASGCTCallFrame *frames; // frames
 } ASGCTCallTrace;
 

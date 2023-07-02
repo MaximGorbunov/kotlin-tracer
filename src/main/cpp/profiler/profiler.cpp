@@ -11,37 +11,37 @@
 
 using namespace std;
 
-shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::instance;
-thread_local jlong kotlinTracer::Profiler::m_coroutineId;
+shared_ptr<kotlin_tracer::Profiler> kotlin_tracer::Profiler::instance;
+thread_local jlong kotlin_tracer::Profiler::m_coroutineId;
 
-std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::getInstance() {
-  return kotlinTracer::Profiler::instance;
+std::shared_ptr<kotlin_tracer::Profiler> kotlin_tracer::Profiler::getInstance() {
+  return kotlin_tracer::Profiler::instance;
 }
 
-std::shared_ptr<kotlinTracer::Profiler> kotlinTracer::Profiler::create(std::shared_ptr<kotlinTracer::JVM> t_jvm,
+std::shared_ptr<kotlin_tracer::Profiler> kotlin_tracer::Profiler::create(std::shared_ptr<kotlin_tracer::JVM> t_jvm,
                                                                        std::chrono::nanoseconds t_threshold) {
   if (instance == nullptr) {
-    instance = shared_ptr<kotlinTracer::Profiler>(new kotlinTracer::Profiler(std::move(t_jvm), t_threshold));
+    instance = shared_ptr<kotlin_tracer::Profiler>(new kotlin_tracer::Profiler(std::move(t_jvm), t_threshold));
   }
   return instance;
 }
 
-void kotlinTracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
+void kotlin_tracer::Profiler::signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext) {
   if (!m_active) return;
   auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace{});
-  trace->envId = m_jvm->getJNIEnv();
+  trace->env_id = m_jvm->getJNIEnv();
   trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
-  trace->numFrames = 0;
+  trace->num_frames = 0;
   m_asyncTracePtr(trace.get(), 30, t_ucontext);
-  if (trace->numFrames < 0) {
-    logDebug("[Kotlin-tracer] frames not found: " + tickToMessage(trace->numFrames));
+  if (trace->num_frames < 0) {
+    logDebug("[Kotlin-tracer] frames not found: " + tickToMessage(trace->num_frames));
   }
-  if (trace->numFrames > 0) {
-    getInstance()->m_storage.addRawTrace(kotlinTracer::currentTimeMs(), trace, pthread_self(), m_coroutineId);
+  if (trace->num_frames > 0) {
+    getInstance()->m_storage.addRawTrace(kotlin_tracer::currentTimeMs(), trace, pthread_self(), m_coroutineId);
   }
 }
 
-kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm, std::chrono::nanoseconds t_threshold)
+kotlin_tracer::Profiler::Profiler(shared_ptr<kotlin_tracer::JVM> t_jvm, std::chrono::nanoseconds t_threshold)
     : m_jvm(std::move(t_jvm)), m_storage(), m_methodInfoMap(), m_threshold(t_threshold) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->m_asyncTracePtr = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
@@ -60,7 +60,7 @@ kotlinTracer::Profiler::Profiler(shared_ptr<kotlinTracer::JVM> t_jvm, std::chron
   dlclose(libjvm_handle);
 }
 
-void kotlinTracer::Profiler::startProfiler() {
+void kotlin_tracer::Profiler::startProfiler() {
   m_profilerThread = std::make_unique<thread>([this] {
     logDebug("[Kotlin-tracer] Profiler thread started");
     m_jvm->attachThread();
@@ -78,17 +78,17 @@ void kotlinTracer::Profiler::startProfiler() {
   });
 }
 
-void kotlinTracer::Profiler::stop() {
+void kotlin_tracer::Profiler::stop() {
   logDebug("stop profiler");
   m_active = false;
   m_profilerThread->join();
 }
 
-void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
+void kotlin_tracer::Profiler::traceStart(jlong t_coroutineId) {
   auto charBuffer = make_unique<char[]>(100);
   pthread_getname_np(pthread_self(), charBuffer.get(), 100);
-  auto start = kotlinTracer::currentTimeNs();
-  kotlinTracer::TraceInfo trace_info{t_coroutineId, start, 0};
+  auto start = kotlin_tracer::currentTimeNs();
+  kotlin_tracer::TraceInfo trace_info{t_coroutineId, start, 0};
   m_storage.createChildCoroutineStorage(t_coroutineId);
   if (m_storage.addOngoingTraceInfo(trace_info)) {
     logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(t_coroutineId));
@@ -97,11 +97,11 @@ void kotlinTracer::Profiler::traceStart(jlong t_coroutineId) {
   }
 }
 
-void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
-  auto finish = kotlinTracer::currentTimeNs();
+void kotlin_tracer::Profiler::traceEnd(jlong t_coroutineId) {
+  auto finish = kotlin_tracer::currentTimeNs();
   auto traceInfo = findOngoingTrace(t_coroutineId);
   traceInfo.end = finish;
-  removeOngoingTrace(traceInfo.coroutineId);
+  removeOngoingTrace(traceInfo.coroutine_id);
   auto elapsedTime = traceInfo.end - traceInfo.start;
   logDebug("trace end: " + to_string(finish) + ":" + to_string(t_coroutineId) + " time: "
                + to_string(elapsedTime));
@@ -118,7 +118,7 @@ void kotlinTracer::Profiler::traceEnd(jlong t_coroutineId) {
   }
 }
 
-void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringstream &output) {
+void kotlin_tracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringstream &output) {
   auto suspensions = m_storage.getSuspensions(t_coroutineId);
   std::function<void(shared_ptr<SuspensionInfo>)>
       suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
@@ -130,7 +130,7 @@ void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringst
       output << "[Kotlin-tracer] Suspended time: NOT_ENDED\n";
     }
     output << "[Kotlin-tracer] Suspend stack trace: \n";
-    for (auto &frame : *suspension->suspensionStackTrace) {
+    for (auto &frame : *suspension->suspension_stack_trace) {
       output << *frame << "\n";
     }
   };
@@ -152,15 +152,15 @@ void kotlinTracer::Profiler::printSuspensions(jlong t_coroutineId, std::stringst
   }
 }
 
-void kotlinTracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {
+void kotlin_tracer::Profiler::removeOngoingTrace(const jlong &coroutineId) {
   m_storage.removeOngoingTraceInfo(coroutineId);
 }
 
-kotlinTracer::TraceInfo &kotlinTracer::Profiler::findOngoingTrace(const jlong &coroutineId) {
+kotlin_tracer::TraceInfo &kotlin_tracer::Profiler::findOngoingTrace(const jlong &coroutineId) {
   return m_storage.findOngoingTraceInfo(coroutineId);
 }
 
-void kotlinTracer::Profiler::processTraces() {
+void kotlin_tracer::Profiler::processTraces() {
   auto rawRecord = m_storage.removeRawTraceHeader();
   while (rawRecord != nullptr) {
     auto processedRecord = make_shared<ProcessedTraceRecord>(ProcessedTraceRecord{});
@@ -172,16 +172,16 @@ void kotlinTracer::Profiler::processTraces() {
     shared_ptr<list<shared_ptr<string>>> methods = make_shared<list<shared_ptr<string>>>();
     for (int i = 0; i < rawRecord->trace_count; i++) {
       ASGCTCallFrame frame = rawRecord->trace->frames[i];
-      methods->push_back(processMethodInfo(frame.methodId, frame.lineno));
+      methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
     }
-    processedRecord->methodInfo = std::move(methods);
+    processedRecord->method_info = std::move(methods);
     m_storage.addProcessedTrace(processedRecord);
     rawRecord = m_storage.removeRawTraceHeader();
   }
 
 }
 
-shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
+shared_ptr<string> kotlin_tracer::Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
   if (!m_methodInfoMap.contains(methodId)) {
     auto jvmti = m_jvm->getJvmTi();
     char *pName;
@@ -219,7 +219,7 @@ shared_ptr<string> kotlinTracer::Profiler::processMethodInfo(jmethodID methodId,
   }
 }
 
-std::string kotlinTracer::Profiler::tickToMessage(jint t_ticks) {
+std::string kotlin_tracer::Profiler::tickToMessage(jint t_ticks) {
   switch (t_ticks) {
     case 0 :return "ticks_no_Java_frame";
     case -1 :return "ticks_no_class_load";
@@ -236,15 +236,15 @@ std::string kotlinTracer::Profiler::tickToMessage(jint t_ticks) {
   }
 }
 
-void kotlinTracer::Profiler::coroutineCreated(jlong t_coroutineId, jlong t_parentId) {
+void kotlin_tracer::Profiler::coroutineCreated(jlong t_coroutineId, jlong t_parentId) {
   if (m_storage.containsChildCoroutineStorage(t_parentId)) {
     m_storage.addChildCoroutine(t_coroutineId, t_parentId);
     m_storage.createChildCoroutineStorage(t_coroutineId);
   }
 }
 
-void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
-  kotlinTracer::coroutineSuspended(t_coroutineId);
+void kotlin_tracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
+  kotlin_tracer::coroutineSuspended(t_coroutineId);
   ::jthread thread;
   jvmtiFrameInfo frames[20];
   jint framesCount;
@@ -255,15 +255,15 @@ void kotlinTracer::Profiler::coroutineSuspended(jlong t_coroutineId) {
     auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{t_coroutineId, currentTimeNs(), 0,
                                                                      make_unique<list<shared_ptr<string>>>()});
     for (int i = 0; i < framesCount; ++i) {
-      suspensionInfo->suspensionStackTrace->push_back(
+      suspensionInfo->suspension_stack_trace->push_back(
           processMethodInfo(frames[i].method, (jint) frames[i].location));
     }
     m_storage.addSuspensionInfo(suspensionInfo);
   }
 }
 
-void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
-  kotlinTracer::coroutineResumed(t_coroutineId);
+void kotlin_tracer::Profiler::coroutineResumed(jlong t_coroutineId) {
+  kotlin_tracer::coroutineResumed(t_coroutineId);
   m_coroutineId = t_coroutineId;
   auto suspensionInfo = m_storage.getLastSuspensionInfo(t_coroutineId);
   if (suspensionInfo != nullptr) {
@@ -271,6 +271,6 @@ void kotlinTracer::Profiler::coroutineResumed(jlong t_coroutineId) {
   }
 }
 
-void kotlinTracer::Profiler::coroutineCompleted(jlong t_coroutineId) {
-  kotlinTracer::coroutineCompleted();
+void kotlin_tracer::Profiler::coroutineCompleted(jlong t_coroutineId) {
+  kotlin_tracer::coroutineCompleted();
 }

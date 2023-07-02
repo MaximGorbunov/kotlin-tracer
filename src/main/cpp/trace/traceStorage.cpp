@@ -2,7 +2,7 @@
 
 #include <memory>
 
-using namespace kotlinTracer;
+using namespace kotlin_tracer;
 using std::shared_ptr, std::unique_ptr, std::list, std::make_unique, std::make_shared;
 
 TraceStorage::TraceStorage()
@@ -19,8 +19,8 @@ void TraceStorage::addRawTrace(TraceTime t_time, shared_ptr<ASGCTCallTrace> t_tr
   record->time = t_time;
   record->trace = std::move(t_trace);
   record->thread = t_thread;
-  record->trace_count = record->trace->numFrames;
-  record->coroutineId = t_coroutineId;
+  record->trace_count = record->trace->num_frames;
+  record->coroutine_id = t_coroutineId;
   m_rawList->push_back(record);
 }
 
@@ -33,7 +33,7 @@ void TraceStorage::addProcessedTrace(const shared_ptr<ProcessedTraceRecord> &t_r
 }
 
 bool TraceStorage::addOngoingTraceInfo(const TraceInfo &t_traceInfo) {
-  return m_ongoingTraceInfoMap->insert(t_traceInfo.coroutineId, t_traceInfo);
+  return m_ongoingTraceInfoMap->insert(t_traceInfo.coroutine_id, t_traceInfo);
 }
 
 TraceInfo &TraceStorage::findOngoingTraceInfo(const jlong &t_coroutineId) {
@@ -46,7 +46,7 @@ void TraceStorage::removeOngoingTraceInfo(const jlong &t_coroutineId) {
 
 void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &t_suspensionInfo) {
   auto creationLambda = []() { return std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>(); };
-  auto list = m_suspensionsInfoMap->findOrInsert(t_suspensionInfo->coroutineId, creationLambda);
+  auto list = m_suspensionsInfoMap->findOrInsert(t_suspensionInfo->coroutine_id, creationLambda);
   list->push_back(t_suspensionInfo);
 }
 

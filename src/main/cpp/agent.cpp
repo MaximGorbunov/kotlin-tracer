@@ -10,8 +10,8 @@
 using namespace std;
 // Required to be enabled for AsyncTrace usage
 
-unique_ptr<kotlinTracer::Agent> kotlinTracer::agent;
-std::mutex kotlinTracer::agentMutex = std::mutex();
+unique_ptr<kotlin_tracer::Agent> kotlin_tracer::agent;
+std::mutex kotlin_tracer::agentMutex = std::mutex();
 
 void JNICALL ClassLoad(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread, jclass t_class) {}
 
@@ -22,7 +22,7 @@ void JNICALL ClassFileLoadHook(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv,
                                const unsigned char *t_classData,
                                jint *t_newClassDataLen,
                                unsigned char **t_newClassData) {
-  kotlinTracer::agent->getInstrumentation()->instrument(t_jniEnv,
+  kotlin_tracer::agent->getInstrumentation()->instrument(t_jniEnv,
                                                         t_name,
                                                         t_classDataLen,
                                                         t_classData,
@@ -31,24 +31,24 @@ void JNICALL ClassFileLoadHook(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv,
 }
 
 void JNICALL ThreadStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
-  kotlinTracer::agent->getJVM()->addCurrentThread(t_thread);
+  kotlin_tracer::agent->getJVM()->addCurrentThread(t_thread);
 }
 
 void JNICALL VMInit(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
-  kotlinTracer::agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
-  auto metadata = kotlinTracer::JarLoader::load(kotlinTracer::agent->getInstrumentation()->getJarPath(),
+  kotlin_tracer::agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
+  auto metadata = kotlin_tracer::JarLoader::load(kotlin_tracer::agent->getInstrumentation()->getJarPath(),
                                                 "kotlin-tracer.jar",
-                                                kotlinTracer::agent->getJVM());
-  kotlinTracer::agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
+                                                kotlin_tracer::agent->getJVM());
+  kotlin_tracer::agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
 }
 
 void JNICALL ClassPrepare(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread,
                           jclass t_klass) {
-  kotlinTracer::agent->getJVM()->loadMethodsId(t_jvmtiEnv, t_jniEnv, t_klass);
+  kotlin_tracer::agent->getJVM()->loadMethodsId(t_jvmtiEnv, t_jniEnv, t_klass);
 }
 
 void JNICALL VMStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
-  kotlinTracer::agent->getProfiler()->startProfiler();
+  kotlin_tracer::agent->getProfiler()->startProfiler();
 }
 
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reserved) {
@@ -58,10 +58,10 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reser
   string optionsStr(t_options);
   logDebug("======Kotlin tracer initialization start======");
   logDebug("Options:" + optionsStr);
-  auto profilerOptions = kotlinTracer::ArgsParser::parseProfilerOptions(optionsStr);
-  logDebug("Parsed class:" + *profilerOptions->className);
-  logDebug("Parsed method:" + *profilerOptions->methodName);
-  logDebug("Parsed period:" + to_string(profilerOptions->profilingPeriod.count()));
+  auto profilerOptions = kotlin_tracer::ArgsParser::parseProfilerOptions(optionsStr);
+  logDebug("Parsed class:" + *profilerOptions->class_name);
+  logDebug("Parsed method:" + *profilerOptions->method_name);
+  logDebug("Parsed period:" + to_string(profilerOptions->profiling_period.count()));
 
   auto callbacks = make_unique<jvmtiEventCallbacks>();
   callbacks->VMStart = VMStart;
@@ -70,28 +70,28 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reser
   callbacks->ClassLoad = ClassLoad;
   callbacks->ClassFileLoadHook = ClassFileLoadHook;
   callbacks->VMInit = VMInit;
-  kotlinTracer::agent = make_unique<kotlinTracer::Agent>(std::shared_ptr<JavaVM>(t_vm, [](JavaVM* vm){}), std::move(callbacks), std::move(profilerOptions));
+  kotlin_tracer::agent = make_unique<kotlin_tracer::Agent>(std::shared_ptr<JavaVM>(t_vm, [](JavaVM* vm){}), std::move(callbacks), std::move(profilerOptions));
   return 0;
 }
 
 JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *t_vm) {
-  lock_guard guard(kotlinTracer::agentMutex);
-  kotlinTracer::agent.reset(nullptr);
+  lock_guard guard(kotlin_tracer::agentMutex);
+  kotlin_tracer::agent.reset(nullptr);
   logDebug("End of cleanup");
 }
 
-shared_ptr<kotlinTracer::JVM> kotlinTracer::Agent::getJVM() {
+shared_ptr<kotlin_tracer::JVM> kotlin_tracer::Agent::getJVM() {
   return m_jvm;
 }
 
-shared_ptr<kotlinTracer::Instrumentation> kotlinTracer::Agent::getInstrumentation() {
+shared_ptr<kotlin_tracer::Instrumentation> kotlin_tracer::Agent::getInstrumentation() {
   return m_instrumentation;
 }
 
-shared_ptr<kotlinTracer::Profiler> kotlinTracer::Agent::getProfiler() {
+shared_ptr<kotlin_tracer::Profiler> kotlin_tracer::Agent::getProfiler() {
   return m_profiler;
 }
 
-void kotlinTracer::Agent::stop() {
+void kotlin_tracer::Agent::stop() {
   m_profiler->stop();
 }

@@ -6,12 +6,12 @@
 
 #include "../vm/jvm.hpp"
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 class JarLoader {
  public:
-  static std::unique_ptr<InstrumentationMetadata> load(std::unique_ptr<std::string> t_jarPath,
+  static std::unique_ptr<InstrumentationMetadata> load(std::unique_ptr<std::string> t_jar_path,
                                                        const std::string &t_name,
-                                                       std::shared_ptr<JVM> t_jvm);
+                                                       const std::shared_ptr<JVM>& t_jvm);
 };
 }
 #endif //KOTLIN_TRACER_JARLOADER_H

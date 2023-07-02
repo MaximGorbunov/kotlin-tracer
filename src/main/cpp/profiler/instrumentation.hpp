@@ -9,7 +9,7 @@
 #include "../vm/jvm.hpp"
 #include "model/args.hpp"
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 class Instrumentation {
  public:
   explicit Instrumentation(std::unique_ptr<ProfilerOptions> t_profilerOptions, std::shared_ptr<JVM> t_jvm) :

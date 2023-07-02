@@ -6,8 +6,8 @@
 
 using namespace std;
 
-kotlinTracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(std::move(t_vm)),
-                                                                         m_threads(make_shared<kotlinTracer::ConcurrentList<shared_ptr<ThreadInfo>>>()) {
+kotlin_tracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(std::move(t_vm)),
+                                                                         m_threads(make_shared<kotlin_tracer::ConcurrentList<shared_ptr<ThreadInfo>>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
   this->m_vm->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
   m_jvmti = pJvmtiEnv;
@@ -27,7 +27,7 @@ kotlinTracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks
   m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
 }
 
-void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
+void kotlin_tracer::JVM::addCurrentThread(::jthread t_thread) {
   JNIEnv *env_id;
   m_vm->GetEnv((void **) &env_id, JNI_VERSION_10);
   pthread_t currentThread = pthread_self();
@@ -42,37 +42,37 @@ void kotlinTracer::JVM::addCurrentThread(::jthread t_thread) {
   m_threads->push_back(threadInfo);
 }
 
-shared_ptr<kotlinTracer::ConcurrentList<shared_ptr<kotlinTracer::ThreadInfo>>> kotlinTracer::JVM::getThreads() {
+shared_ptr<kotlin_tracer::ConcurrentList<shared_ptr<kotlin_tracer::ThreadInfo>>> kotlin_tracer::JVM::getThreads() {
   return m_threads;
 }
 
-shared_ptr<kotlinTracer::ThreadInfo> kotlinTracer::JVM::findThread(const pthread_t &t_thread) {
+shared_ptr<kotlin_tracer::ThreadInfo> kotlin_tracer::JVM::findThread(const pthread_t &t_thread) {
   std::function<bool(shared_ptr<ThreadInfo>)> findThread = [t_thread](const shared_ptr<ThreadInfo>& threadInfo) {
     return pthread_equal(threadInfo->id, t_thread);
   };
   return m_threads->find(findThread);
 }
 
-jvmtiEnv* kotlinTracer::JVM::getJvmTi() {
+jvmtiEnv* kotlin_tracer::JVM::getJvmTi() {
   return m_jvmti;
 }
 
-JNIEnv *kotlinTracer::JVM::getJNIEnv() {
+JNIEnv *kotlin_tracer::JVM::getJNIEnv() {
   JNIEnv *env;
   m_vm->GetEnv((void **) &env, JNI_VERSION_10);
   return env;
 }
 
-void kotlinTracer::JVM::attachThread() {
+void kotlin_tracer::JVM::attachThread() {
   JNIEnv *pEnv = getJNIEnv();
   m_vm->AttachCurrentThreadAsDaemon((void **) &pEnv, nullptr);
 }
 
-void kotlinTracer::JVM::dettachThread() {
+void kotlin_tracer::JVM::dettachThread() {
   m_vm->DetachCurrentThread();
 }
 
-void kotlinTracer::JVM::initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
+void kotlin_tracer::JVM::initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
   jint counter = 0;
   jclass *classes;
   jvmtiError err = t_jvmtiEnv->GetLoadedClasses(&counter, &classes);
@@ -88,7 +88,7 @@ void kotlinTracer::JVM::initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniE
 }
 
 // The jmethodIDs should be allocated. Or we'll get 0 method id
-void kotlinTracer::JVM::loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class) {
+void kotlin_tracer::JVM::loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class) {
   jint method_count = 0;
   jmethodID *methods = nullptr;
   if (t_jvmtiEnv->GetClassMethods(t_class, &method_count, &methods) == 0) {

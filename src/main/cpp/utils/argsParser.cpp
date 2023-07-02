@@ -4,11 +4,12 @@
 
 #include "argsParser.hpp"
 
-using namespace std;
+using std::string, std::chrono::nanoseconds, std::chrono::milliseconds, std::unique_ptr, std::runtime_error;
 
-unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfilerOptions(const string &t_options) {
-  chrono::nanoseconds period(1000000);// 1ms default
-  chrono::nanoseconds threshold(0);
+namespace kotlin_tracer {
+unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &t_options) {
+  nanoseconds period(1000000);// 1ms default
+  nanoseconds threshold(0);
   unique_ptr<string> method;
   unique_ptr<string> klass;
   unique_ptr<string> jarPath;
@@ -49,11 +50,10 @@ unique_ptr<kotlinTracer::ProfilerOptions> kotlinTracer::ArgsParser::parseProfile
     outputPath = make_unique<string>(std::filesystem::current_path().string());
   }
   return make_unique<ProfilerOptions>(std::move(klass), std::move(method), period, threshold,
-                                                         std::move(jarPath), std::move(outputPath));
+                                      std::move(jarPath), std::move(outputPath));
 }
 
-std::tuple<std::unique_ptr<string>,
-           std::unique_ptr<string>> kotlinTracer::ArgsParser::parseMethod(const string &t_option) {
+ArgsParser::InstrumentationInfo ArgsParser::parseMethod(const string &t_option) {
   auto methodDelimiter = t_option.find('.');
   if (methodDelimiter == string::npos) {
     throw runtime_error(
@@ -63,18 +63,19 @@ std::tuple<std::unique_ptr<string>,
           make_unique<string>(t_option.substr(methodDelimiter + 1))};
 }
 
-chrono::nanoseconds kotlinTracer::ArgsParser::parsePeriod(const string &value) {
-  return chrono::nanoseconds(stoi(value));
+nanoseconds ArgsParser::parsePeriod(const string &t_option) {
+  return nanoseconds(stoi(t_option));
 }
 
-chrono::nanoseconds kotlinTracer::ArgsParser::parseThreshold(const string &value) {
-  return duration_cast<chrono::nanoseconds>(chrono::milliseconds(stoi(value)));
+nanoseconds ArgsParser::parseThreshold(const string &t_option) {
+  return duration_cast<nanoseconds>(milliseconds(stoi(t_option)));
 }
 
-unique_ptr<string> kotlinTracer::ArgsParser::parseJarPath(const string &option) {
-  return make_unique<string>(option);
+unique_ptr<string> ArgsParser::parseJarPath(const string &t_option) {
+  return make_unique<string>(t_option);
 }
 
-unique_ptr<string> kotlinTracer::ArgsParser::parseOutputPath(const std::string &option) {
-  return make_unique<string>(option);
+unique_ptr<string> ArgsParser::parseOutputPath(const std::string &t_option) {
+  return make_unique<string>(t_option);
+}
 }

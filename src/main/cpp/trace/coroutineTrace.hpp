@@ -4,7 +4,7 @@
 #define NOT_FOUND (-1)
 
 extern thread_local long currentCoroutineId;
-namespace kotlinTracer {
+namespace kotlin_tracer {
 void coroutineSuspended(long t_coroutineId);
 void coroutineResumed(long t_coroutineId);
 void coroutineCompleted();

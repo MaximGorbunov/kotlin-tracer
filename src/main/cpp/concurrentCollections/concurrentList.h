@@ -5,7 +5,7 @@
 #include <list>
 #include <functional>
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 template<typename T>
 class ConcurrentList {
  private:
@@ -51,14 +51,14 @@ class ConcurrentList {
 
   void forEach(std::function<void(T)> &lambda) {
     std::lock_guard guard(listMutex);
-    for (auto &element: list) {
+    for (auto &element : list) {
       lambda(element);
     }
   }
 
   T find(std::function<bool(T)> &lambda) {
     std::lock_guard guard(listMutex);
-    for (auto &element: list) {
+    for (auto &element : list) {
       if (lambda(element)) {
         return element;
       }

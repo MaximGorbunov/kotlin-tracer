@@ -2,7 +2,7 @@
 #include "instrumentation.hpp"
 #include "../utils/log.h"
 
-using namespace kotlinTracer;
+using namespace kotlin_tracer;
 
 const std::string Instrumentation::KOTLIN_COROUTINE_PROBES_NAME = "kotlinx/coroutines/debug/internal/DebugProbesImpl";
 
@@ -12,9 +12,9 @@ void Instrumentation::instrument(JNIEnv *jniEnv,
                                  const unsigned char *t_classData,
                                  jint *t_newClassDataLen,
                                  unsigned char **t_newClassData) {
-  if (!strcmp(m_profilerOptions->className->c_str(), t_name)) {
-    logDebug("Found tracing class!" + *m_profilerOptions->className);
-    jbyteArray transformed = instrumentMethod(t_classData, t_classDataLen, *m_profilerOptions->methodName);
+  if (!strcmp(m_profilerOptions->class_name->c_str(), t_name)) {
+    logDebug("Found tracing class!" + *m_profilerOptions->class_name);
+    jbyteArray transformed = instrumentMethod(t_classData, t_classDataLen, *m_profilerOptions->method_name);
     jboolean copy = false;
     auto *new_code =
         (unsigned char *) jniEnv->GetByteArrayElements(transformed, &copy);
@@ -56,8 +56,8 @@ jbyteArray Instrumentation::instrumentMethod(const unsigned char *byteCode, int 
                                                   jMethodName);
 }
 std::unique_ptr<std::string> Instrumentation::getJarPath() {
-  if (m_profilerOptions->jarPath == nullptr) return {nullptr};
-  else return make_unique<std::string>(*m_profilerOptions->jarPath);
+  if (m_profilerOptions->jar_path == nullptr) return {nullptr};
+  else return make_unique<std::string>(*m_profilerOptions->jar_path);
 }
 
 

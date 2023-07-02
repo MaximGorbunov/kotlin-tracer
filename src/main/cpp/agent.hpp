@@ -10,7 +10,7 @@
 #include "profiler/model/args.hpp"
 
 // Required to be enabled for AsyncTrace usage
-namespace kotlinTracer {
+namespace kotlin_tracer {
 class Agent {
  public:
   Agent(const std::shared_ptr<JavaVM>& t_vm,

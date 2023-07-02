@@ -6,6 +6,8 @@
 
 #define logInfo(msg) std::cout << (msg) << std::endl
 
+#define logError(msg) std::cout << (msg) << std::endl
+
 #ifdef DEBUG
 #define logDebug(msg) std::cout << (msg) << std::endl
 #else

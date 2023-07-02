@@ -11,7 +11,7 @@
 
 #include "concurrentCollections/concurrentList.h"
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 typedef struct threadInfo {
   const std::shared_ptr<std::string> name;
   const pthread_t id;

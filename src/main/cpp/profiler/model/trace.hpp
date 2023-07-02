@@ -9,38 +9,38 @@
 #include <list>
 #include <string>
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 typedef struct RawCallTraceRecord {
   TraceTime time;
   int trace_count;
   std::shared_ptr<ASGCTCallTrace> trace;
   pthread_t thread;
-  long long coroutineId;
+  long long coroutine_id;
 } RawCallTraceRecord;
 
 typedef struct ProcessedTraceRecord {
   TraceTime time;
   int trace_count;
-  std::shared_ptr<std::list<std::shared_ptr<std::string>>> methodInfo;
+  std::shared_ptr<std::list<std::shared_ptr<std::string>>> method_info;
   std::shared_ptr<std::string> thread_name;
 } ProcessedTraceRecord;
 
 typedef struct TraceInfo {
-  jlong coroutineId;
+  jlong coroutine_id;
   TraceTime start;
   TraceTime end;
 } TraceInfo;
 
 typedef struct SuspensionInfo {
-  jlong coroutineId;
+  jlong coroutine_id;
   TraceTime start;
   TraceTime end;
-  std::unique_ptr<std::list<std::shared_ptr<std::string>>> suspensionStackTrace;
+  std::unique_ptr<std::list<std::shared_ptr<std::string>>> suspension_stack_trace;
 } SuspensionInfo;
 
 typedef struct ProcessedTraceInfo {
-  jlong coroutineId{};
-  TraceTime start{};
+  jlong coroutine_id{};
+  TraceTime trace_time{};
   TraceTime end{};
   ConcurrentList<SuspensionInfo> suspensions{};
 } ProcessedTraceInfo;

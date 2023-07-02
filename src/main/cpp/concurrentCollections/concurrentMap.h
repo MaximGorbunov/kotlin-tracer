@@ -4,7 +4,7 @@
 #include <mutex>
 #include <unordered_map>
 
-namespace kotlinTracer {
+namespace kotlin_tracer {
 template<typename K, typename V>
 class ConcurrentMap {
  private:
