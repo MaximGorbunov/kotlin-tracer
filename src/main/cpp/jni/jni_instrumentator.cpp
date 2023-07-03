@@ -1,76 +1,42 @@
 #include <pthread.h>
 
-#include "../trace/coroutineTrace.hpp"
 #include "jni_instrumentator.h"
-#include "../utils/log.h"
 #include "agent.hpp"
-
-using std::to_string;
 namespace kotlin_tracer {
 extern "C" {
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_coroutineCreated(JNIEnv *env, jclass clazz,
-                                                      jlong coroutineId) {
-  pthread_t current_thread = pthread_self();
-  auto thread_info = agent->getJVM()->findThread(current_thread);
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    agent->getProfiler()->coroutineCreated(coroutineId, currentCoroutineId);
-    logDebug("coroutineCreated tid: " + *thread_info->name +
-        " cid: " + to_string(coroutineId) +
-        " from parentId: " + to_string(currentCoroutineId) + '\n');
-  }
+                                                      jlong coroutine_id) {
+  coroutineCreated(coroutine_id);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_coroutineResumed(JNIEnv *env, jclass clazz,
-                                                      jlong coroutineId) {
-  pthread_t current_thread = pthread_self();
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    auto thread_info = agent->getJVM()->findThread(current_thread);
-    agent->getProfiler()->coroutineResumed(coroutineId);
-    logDebug("coroutine resumed tid: " + *thread_info->name +
-        ", cid: " + to_string(coroutineId) + '\n');
-  }
+                                                      jlong coroutine_id) {
+  coroutineResumed(coroutine_id);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_coroutineCompleted(JNIEnv *env,
                                                         jclass clazz,
-                                                        jlong coroutineId) {
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    agent->getProfiler()->coroutineCompleted(coroutineId);
-    logDebug("coroutineCompleted " + to_string(coroutineId) + '\n');
-  }
+                                                        jlong coroutine_id) {
+  coroutineCompleted(coroutine_id);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_coroutineSuspend(JNIEnv *env, jclass clazz,
-                                                      jlong coroutineId) {
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    agent->getProfiler()->coroutineSuspended(coroutineId);
-    logDebug("coroutineSuspend " + to_string(coroutineId) + '\n');
-  }
+                                                      jlong coroutine_id) {
+  coroutineSuspended(coroutine_id);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass clazz) {
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    agent->getProfiler()->traceStart(currentCoroutineId);
-  }
+  traceStart();
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL
-Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass clazz, jlong t_coroutineId) {
-  auto coroutineId = t_coroutineId == -2 ? currentCoroutineId : t_coroutineId;
-  std::lock_guard guard(agentMutex);
-  if (agent != nullptr) {
-    agent->getProfiler()->traceEnd(coroutineId);
-  }
+Java_io_inst_CoroutineInstrumentator_traceEnd(JNIEnv *, jclass clazz, jlong coroutine_id) {
+  traceEnd(coroutine_id);
 }
 }
 }

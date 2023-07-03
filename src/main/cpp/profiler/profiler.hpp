@@ -8,21 +8,24 @@
 #include "trace/traceStorage.hpp"
 #include "../vm/jvm.hpp"
 
+#define NOT_FOUND (-1)
+
 namespace kotlin_tracer {
+
 class Profiler {
  public:
   static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);
   static std::shared_ptr<Profiler> getInstance();
   void startProfiler();
   void stop();
-  void traceStart(jlong t_coroutineId);
-  void traceEnd(jlong t_coroutineId);
+  void traceStart();
+  void traceEnd(jlong coroutine_id);
   TraceInfo &findOngoingTrace(const jlong &t_coroutineId);
   void removeOngoingTrace(const jlong &t_coroutineId);
-  void coroutineCreated(jlong t_coroutineId, jlong t_parentId);
-  void coroutineSuspended(jlong t_coroutineId);
+  void coroutineCreated(jlong t_coroutineId);
+  void coroutineSuspended(jlong coroutine_id);
   void coroutineResumed(jlong t_coroutineId);
-  void coroutineCompleted(jlong t_coroutineId);
+  void coroutineCompleted(jlong coroutine_id);
  private:
   static std::shared_ptr<Profiler> instance;
   thread_local static jlong m_coroutineId;

@@ -8,25 +8,25 @@ namespace kotlin_tracer {
 template<typename K, typename V>
 class ConcurrentMap {
  private:
-  std::mutex mapMutex;
-  std::unordered_map<K, V> map;
+  std::mutex map_mutex_;
+  std::unordered_map<K, V> map_;
  public:
-  ConcurrentMap() : mapMutex(), map() {}
+  ConcurrentMap() : map_mutex_(), map_() {}
 
   bool insert(const K &key, const V &value) {
-    std::lock_guard guard(mapMutex);
-    return map.insert({key, value}).second;
+    std::lock_guard guard(map_mutex_);
+    return map_.insert({key, value}).second;
   }
 
   V &get(const K &key) {
-    std::lock_guard guard(mapMutex);
-    return map[key];
+    std::lock_guard guard(map_mutex_);
+    return map_[key];
   }
 
   V &find(const K &key) {
-    std::lock_guard guard(mapMutex);
-    auto iter = map.find(key);
-    if (iter != map.end()) {
+    std::lock_guard guard(map_mutex_);
+    auto iter = map_.find(key);
+    if (iter != map_.end()) {
       return iter->second;
     } else {
       return nullptr;
@@ -34,27 +34,27 @@ class ConcurrentMap {
   }
 
   V findOrInsert(const K &key, V (creationFunc)()) {
-    std::lock_guard guard(mapMutex);
-    auto iter = map.find(key);
-    if (iter != map.end()) {
+    std::lock_guard guard(map_mutex_);
+    auto iter = map_.find(key);
+    if (iter != map_.end()) {
       return iter->second;
     } else {
       V value = creationFunc();
-      map.insert({key, value});
+      map_.insert({key, value});
       return value;
     }
   }
 
   bool contains(const K &key) {
-    std::lock_guard guard(mapMutex);
-    return map.contains(key);
+    std::lock_guard guard(map_mutex_);
+    return map_.contains(key);
   }
 
   bool erase(const K &key) {
-    std::lock_guard guard(mapMutex);
-    auto iter = map.find(key);
-    if (iter != map.end()) {
-      map.erase(iter);
+    std::lock_guard guard(map_mutex_);
+    auto iter = map_.find(key);
+    if (iter != map_.end()) {
+      map_.erase(iter);
       return true;
     } else return false;
   }

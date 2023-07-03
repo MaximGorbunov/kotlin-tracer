@@ -7,12 +7,15 @@
 #include "vm/jvm.hpp"
 #include "agent.hpp"
 
-using namespace std;
+using std::function, std::shared_mutex, std::shared_ptr, std::unique_ptr, std::make_unique, std::mutex, std::lock_guard, std::string, std::to_string, std::runtime_error;
+
+typedef std::shared_lock<std::shared_mutex> read_lock;
+typedef std::unique_lock<std::shared_mutex> write_lock;
+
+static unique_ptr<kotlin_tracer::Agent> agent;
+static shared_mutex mutex;
+
 // Required to be enabled for AsyncTrace usage
-
-unique_ptr<kotlin_tracer::Agent> kotlin_tracer::agent;
-std::mutex kotlin_tracer::agentMutex = std::mutex();
-
 void JNICALL ClassLoad(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread, jclass t_class) {}
 
 void JNICALL ClassFileLoadHook(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv,
@@ -22,33 +25,33 @@ void JNICALL ClassFileLoadHook(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv,
                                const unsigned char *t_classData,
                                jint *t_newClassDataLen,
                                unsigned char **t_newClassData) {
-  kotlin_tracer::agent->getInstrumentation()->instrument(t_jniEnv,
-                                                        t_name,
-                                                        t_classDataLen,
-                                                        t_classData,
-                                                        t_newClassDataLen,
-                                                        t_newClassData);
+  agent->getInstrumentation()->instrument(t_jniEnv,
+                                          t_name,
+                                          t_classDataLen,
+                                          t_classData,
+                                          t_newClassDataLen,
+                                          t_newClassData);
 }
 
 void JNICALL ThreadStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
-  kotlin_tracer::agent->getJVM()->addCurrentThread(t_thread);
+  agent->getJVM()->addCurrentThread(t_thread);
 }
 
 void JNICALL VMInit(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread) {
-  kotlin_tracer::agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
-  auto metadata = kotlin_tracer::JarLoader::load(kotlin_tracer::agent->getInstrumentation()->getJarPath(),
-                                                "kotlin-tracer.jar",
-                                                kotlin_tracer::agent->getJVM());
-  kotlin_tracer::agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
+  agent->getJVM()->initializeMethodIds(t_jvmtiEnv, t_jniEnv);
+  auto metadata = load(agent->getInstrumentation()->getJarPath(),
+                       "kotlin-tracer.jar",
+                       agent->getJVM());
+  agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
 }
 
 void JNICALL ClassPrepare(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, ::jthread t_thread,
                           jclass t_klass) {
-  kotlin_tracer::agent->getJVM()->loadMethodsId(t_jvmtiEnv, t_jniEnv, t_klass);
+  agent->getJVM()->loadMethodsId(t_jvmtiEnv, t_jniEnv, t_klass);
 }
 
 void JNICALL VMStart(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
-  kotlin_tracer::agent->getProfiler()->startProfiler();
+  agent->getProfiler()->startProfiler();
 }
 
 JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reserved) {
@@ -70,28 +73,70 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *t_vm, char *t_options, void *t_reser
   callbacks->ClassLoad = ClassLoad;
   callbacks->ClassFileLoadHook = ClassFileLoadHook;
   callbacks->VMInit = VMInit;
-  kotlin_tracer::agent = make_unique<kotlin_tracer::Agent>(std::shared_ptr<JavaVM>(t_vm, [](JavaVM* vm){}), std::move(callbacks), std::move(profilerOptions));
+  agent = make_unique<kotlin_tracer::Agent>(std::shared_ptr<JavaVM>(t_vm, [](JavaVM *vm) {}),
+                                            std::move(callbacks),
+                                            std::move(profilerOptions));
   return 0;
 }
 
 JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *t_vm) {
-  lock_guard guard(kotlin_tracer::agentMutex);
-  kotlin_tracer::agent.reset(nullptr);
+  write_lock lock(mutex);
+  agent.reset();
   logDebug("End of cleanup");
 }
 
-shared_ptr<kotlin_tracer::JVM> kotlin_tracer::Agent::getJVM() {
-  return m_jvm;
+namespace kotlin_tracer {
+void coroutineCreated(jlong coroutine_id) {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->coroutineCreated(coroutine_id);
+  }
 }
 
-shared_ptr<kotlin_tracer::Instrumentation> kotlin_tracer::Agent::getInstrumentation() {
-  return m_instrumentation;
+void coroutineResumed(jlong coroutine_id) {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->coroutineResumed(coroutine_id);
+  }
 }
 
-shared_ptr<kotlin_tracer::Profiler> kotlin_tracer::Agent::getProfiler() {
-  return m_profiler;
+void coroutineSuspended(jlong coroutine_id) {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->coroutineSuspended(coroutine_id);
+  }
 }
 
-void kotlin_tracer::Agent::stop() {
-  m_profiler->stop();
+void coroutineCompleted(jlong coroutine_id) {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->coroutineCompleted(coroutine_id);
+  }
+}
+
+void traceStart() {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->traceStart();
+  }
+}
+
+void traceEnd(jlong coroutine_id) {
+  read_lock lock(mutex);
+  if (agent != nullptr) {
+    agent->getProfiler()->traceEnd(coroutine_id);
+  }
+}
+
+shared_ptr<JVM> Agent::getJVM() {
+  return jvm_;
+}
+
+shared_ptr<Instrumentation> Agent::getInstrumentation() {
+  return instrumentation_;
+}
+
+shared_ptr<Profiler> Agent::getProfiler() {
+  return profiler_;
+}
 }

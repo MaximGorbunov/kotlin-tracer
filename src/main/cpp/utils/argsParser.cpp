@@ -7,7 +7,7 @@
 using std::string, std::chrono::nanoseconds, std::chrono::milliseconds, std::unique_ptr, std::runtime_error;
 
 namespace kotlin_tracer {
-unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &t_options) {
+unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &options) {
   nanoseconds period(1000000);// 1ms default
   nanoseconds threshold(0);
   unique_ptr<string> method;
@@ -17,17 +17,17 @@ unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &t_opt
   size_t currentPosition = 0;
   size_t delimiterPosition;
   do {
-    delimiterPosition = t_options.find(',', currentPosition);
+    delimiterPosition = options.find(',', currentPosition);
     if (delimiterPosition == string::npos) {
-      delimiterPosition = t_options.length();
+      delimiterPosition = options.length();
     }
-    auto keyValueDelimiterPosition = t_options.find('=', currentPosition);
+    auto keyValueDelimiterPosition = options.find('=', currentPosition);
     if (keyValueDelimiterPosition == string::npos) {
-      throw runtime_error("Incorrect options provided: " + t_options +
+      throw runtime_error("Incorrect options provided: " + options +
           ". Use following syntax: method=x/y/z/Class.method,period=1000");
     }
-    string key = t_options.substr(currentPosition, keyValueDelimiterPosition - currentPosition);
-    string value = t_options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition - 1);
+    string key = options.substr(currentPosition, keyValueDelimiterPosition - currentPosition);
+    string value = options.substr(keyValueDelimiterPosition + 1, delimiterPosition - keyValueDelimiterPosition - 1);
     if (key == "method") {
       auto [className, methodName] = ArgsParser::parseMethod(value);
       method = std::move(methodName);
@@ -42,7 +42,7 @@ unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &t_opt
       threshold = ArgsParser::parseThreshold(value);
     }
     currentPosition = delimiterPosition + 1;
-  } while (currentPosition < t_options.length());
+  } while (currentPosition < options.length());
   if (method == nullptr) {
     throw runtime_error("Method name must be provided. Use following syntax: method=x/y/z/Class.method,period=1000");
   }
@@ -53,29 +53,29 @@ unique_ptr<ProfilerOptions> ArgsParser::parseProfilerOptions(const string &t_opt
                                       std::move(jarPath), std::move(outputPath));
 }
 
-ArgsParser::InstrumentationInfo ArgsParser::parseMethod(const string &t_option) {
-  auto methodDelimiter = t_option.find('.');
+ArgsParser::InstrumentationInfo ArgsParser::parseMethod(const string &option) {
+  auto methodDelimiter = option.find('.');
   if (methodDelimiter == string::npos) {
     throw runtime_error(
-        "Provided incorrect method: " + t_option + ". Use following syntax package/class.method");
+        "Provided incorrect method: " + option + ". Use following syntax package/class.method");
   }
-  return {make_unique<string>(t_option.substr(0, methodDelimiter)),
-          make_unique<string>(t_option.substr(methodDelimiter + 1))};
+  return {make_unique<string>(option.substr(0, methodDelimiter)),
+          make_unique<string>(option.substr(methodDelimiter + 1))};
 }
 
-nanoseconds ArgsParser::parsePeriod(const string &t_option) {
-  return nanoseconds(stoi(t_option));
+nanoseconds ArgsParser::parsePeriod(const string &option) {
+  return nanoseconds(stoi(option));
 }
 
-nanoseconds ArgsParser::parseThreshold(const string &t_option) {
-  return duration_cast<nanoseconds>(milliseconds(stoi(t_option)));
+nanoseconds ArgsParser::parseThreshold(const string &option) {
+  return duration_cast<nanoseconds>(milliseconds(stoi(option)));
 }
 
-unique_ptr<string> ArgsParser::parseJarPath(const string &t_option) {
-  return make_unique<string>(t_option);
+unique_ptr<string> ArgsParser::parseJarPath(const string &option) {
+  return make_unique<string>(option);
 }
 
-unique_ptr<string> ArgsParser::parseOutputPath(const std::string &t_option) {
-  return make_unique<string>(t_option);
+unique_ptr<string> ArgsParser::parseOutputPath(const std::string &option) {
+  return make_unique<string>(option);
 }
 }
