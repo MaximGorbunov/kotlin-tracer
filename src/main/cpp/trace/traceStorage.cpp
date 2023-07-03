@@ -2,82 +2,88 @@
 
 #include <memory>
 
-using namespace kotlin_tracer;
-using std::shared_ptr, std::unique_ptr, std::list, std::make_unique, std::make_shared;
+namespace kotlin_tracer {
+using std::shared_ptr, std::unique_ptr, std::list;
 
-TraceStorage::TraceStorage()
-    : m_rawList(make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
-      m_processedList(make_unique<ConcurrentList<shared_ptr<ProcessedTraceRecord>>>()),
-      m_ongoingTraceInfoMap(make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-      m_childCoroutinesMap(make_unique<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
-      m_suspensionsInfoMap(make_unique<ConcurrentMap<jlong,
-                                                     shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>>>>()) {}
+TraceStorage::TraceStorage() : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
+                               processed_list_(std::make_unique<ConcurrentList<shared_ptr < ProcessedTraceRecord>>>()),
+                               ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
+                               child_coroutines_map_(std::make_unique<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
+                               suspensions_info_map_(std::make_unique<ConcurrentMap<jlong, shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>>>>()) {
+}
 
-void TraceStorage::addRawTrace(TraceTime t_time, shared_ptr<ASGCTCallTrace> t_trace,
-                               pthread_t t_thread, long long t_coroutineId) {
-  auto record = make_shared<RawCallTraceRecord>(RawCallTraceRecord{});
-  record->time = t_time;
-  record->trace = std::move(t_trace);
-  record->thread = t_thread;
+void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
+                               pthread_t thread, long long coroutine_id) {
+  auto record = std::make_shared<RawCallTraceRecord>(RawCallTraceRecord{});
+  record->time = time;
+  record->trace = std::move(trace);
+  record->thread = thread;
   record->trace_count = record->trace->num_frames;
-  record->coroutine_id = t_coroutineId;
-  m_rawList->push_back(record);
+  record->coroutine_id = coroutine_id;
+  raw_list_->push_back(record);
 }
 
 shared_ptr<RawCallTraceRecord> TraceStorage::removeRawTraceHeader() {
-  return m_rawList->pop_front();
+  return raw_list_->pop_front();
 }
 
-void TraceStorage::addProcessedTrace(const shared_ptr<ProcessedTraceRecord> &t_record) {
-  m_processedList->push_back(t_record);
+void TraceStorage::addProcessedTrace(const shared_ptr<ProcessedTraceRecord> &record) {
+  processed_list_->push_back(record);
 }
 
-bool TraceStorage::addOngoingTraceInfo(const TraceInfo &t_traceInfo) {
-  return m_ongoingTraceInfoMap->insert(t_traceInfo.coroutine_id, t_traceInfo);
+bool TraceStorage::addOngoingTraceInfo(const TraceInfo &trace_info) {
+  return ongoing_trace_info_map_->insert(trace_info.coroutine_id, trace_info);
 }
 
-TraceInfo &TraceStorage::findOngoingTraceInfo(const jlong &t_coroutineId) {
-  return m_ongoingTraceInfoMap->get(t_coroutineId);
+TraceInfo &TraceStorage::findOngoingTraceInfo(const jlong &coroutine_id) {
+  return ongoing_trace_info_map_->get(coroutine_id);
 }
 
-void TraceStorage::removeOngoingTraceInfo(const jlong &t_coroutineId) {
-  m_ongoingTraceInfoMap->erase(t_coroutineId);
+void TraceStorage::removeOngoingTraceInfo(const jlong &coroutine_id) {
+  ongoing_trace_info_map_->erase(coroutine_id);
 }
 
-void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &t_suspensionInfo) {
-  auto creationLambda = []() { return std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>(); };
-  auto list = m_suspensionsInfoMap->findOrInsert(t_suspensionInfo->coroutine_id, creationLambda);
-  list->push_back(t_suspensionInfo);
+void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspension_info) {
+  auto creationLambda = []() { return std::make_shared<ConcurrentList < shared_ptr<SuspensionInfo>> > (); };
+  auto list = suspensions_info_map_->findOrInsert(suspension_info->coroutine_id, creationLambda);
+  list->push_back(suspension_info);
 }
 
-shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>> TraceStorage::getSuspensions(jlong t_coroutineId) {
-  if (m_suspensionsInfoMap->contains(t_coroutineId)) {
-    return m_suspensionsInfoMap->get(t_coroutineId);
-  } else return {nullptr};
+shared_ptr<ConcurrentList < shared_ptr<SuspensionInfo>>>
+TraceStorage::getSuspensions(jlong
+coroutine_id) {
+if (suspensions_info_map_->
+contains(coroutine_id)
+) {
+return suspensions_info_map_->
+get(coroutine_id);
+} else return {
+nullptr};
 }
 
-shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong t_coroutineId) {
+shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong coroutine_id) {
   std::function<bool(shared_ptr<SuspensionInfo>)>
       firstNonEndedSuspensionPredicate = [](const shared_ptr<SuspensionInfo> &suspensionInfo) {
     return suspensionInfo->end == 0;
   };
-  if (m_suspensionsInfoMap->contains(t_coroutineId)) {
-    return m_suspensionsInfoMap->get(t_coroutineId)->find(firstNonEndedSuspensionPredicate);
+  if (suspensions_info_map_->contains(coroutine_id)) {
+    return suspensions_info_map_->get(coroutine_id)->find(firstNonEndedSuspensionPredicate);
   } else return nullptr;
 }
 
-shared_ptr<ConcurrentList<jlong>> TraceStorage::getChildCoroutines(jlong t_coroutineId) {
-  return m_childCoroutinesMap->get(t_coroutineId);
+shared_ptr<ConcurrentList<jlong>>TraceStorage::getChildCoroutines(jlong coroutine_id) {
+  return child_coroutines_map_->get(coroutine_id);
 }
 
-void TraceStorage::addChildCoroutine(jlong t_coroutineId, jlong t_parentCoroutineId) {
-  m_childCoroutinesMap->get(t_parentCoroutineId)->push_back(t_coroutineId);
+void TraceStorage::addChildCoroutine(jlong coroutine_id, jlong parent_coroutine_id) {
+  child_coroutines_map_->get(parent_coroutine_id)->push_back(coroutine_id);
 }
 
-void TraceStorage::createChildCoroutineStorage(jlong t_coroutineId) {
-  m_childCoroutinesMap->insert(t_coroutineId, std::make_shared<ConcurrentList<jlong>>());
+void TraceStorage::createChildCoroutineStorage(jlong coroutine_id) {
+  child_coroutines_map_->insert(coroutine_id, std::make_shared<ConcurrentList < jlong>>());
 }
 
-bool TraceStorage::containsChildCoroutineStorage(jlong t_coroutineId) {
-  return m_childCoroutinesMap->contains(t_coroutineId);
+bool TraceStorage::containsChildCoroutineStorage(jlong coroutine_id) {
+  return child_coroutines_map_->contains(coroutine_id);
+}
 }

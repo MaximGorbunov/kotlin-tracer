@@ -16,27 +16,28 @@ class TraceStorage {
  public:
   TraceStorage();
 
-  void addRawTrace(TraceTime t_time, std::shared_ptr<ASGCTCallTrace> t_trace,
-                   pthread_t t_thread, long long t_coroutineId);
-  void addProcessedTrace(const std::shared_ptr<ProcessedTraceRecord> &t_record);
-  bool addOngoingTraceInfo(const TraceInfo &t_traceInfo);
-  void addSuspensionInfo(const std::shared_ptr<SuspensionInfo>& t_suspensionInfo);
-  std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong t_coroutineId);
-  std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong t_coroutineId);
-  void removeOngoingTraceInfo(const jlong &t_coroutineId);
-  TraceInfo &findOngoingTraceInfo(const jlong &t_coroutineId);
+  void addRawTrace(TraceTime t_time, std::shared_ptr<ASGCTCallTrace> trace,
+                   pthread_t thread, long long coroutine_id);
+  void addProcessedTrace(const std::shared_ptr<ProcessedTraceRecord> &record);
+  bool addOngoingTraceInfo(const TraceInfo &trace_info);
+  void addSuspensionInfo(const std::shared_ptr<SuspensionInfo> &suspension_info);
+  std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong coroutine_id);
+  std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong coroutine_id);
+  void removeOngoingTraceInfo(const jlong &coroutine_id);
+  TraceInfo &findOngoingTraceInfo(const jlong &coroutine_id);
   std::shared_ptr<RawCallTraceRecord> removeRawTraceHeader();
-  std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong t_coroutineId);
-  void addChildCoroutine(jlong t_coroutineId, jlong t_parentCoroutineId);
-  void createChildCoroutineStorage(jlong t_coroutineId);
-  bool containsChildCoroutineStorage(jlong t_coroutineId);
+  std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong coroutine_id);
+  void addChildCoroutine(jlong coroutine_id, jlong parent_coroutine_id);
+  void createChildCoroutineStorage(jlong coroutine_id);
+  bool containsChildCoroutineStorage(jlong coroutine_id);
 
  private:
-  std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> m_rawList;
-  std::unique_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> m_processedList;
-  std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> m_ongoingTraceInfoMap;
-  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> m_childCoroutinesMap;
-  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>>>> m_suspensionsInfoMap;
+  std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;
+  std::unique_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> processed_list_;
+  std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> ongoing_trace_info_map_;
+  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> child_coroutines_map_;
+  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>>>>
+      suspensions_info_map_;
 };
 }
 

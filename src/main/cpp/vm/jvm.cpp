@@ -4,94 +4,107 @@
 #include <utility>
 #include "../utils/log.h"
 
-using namespace std;
+namespace kotlin_tracer {
 
-kotlin_tracer::JVM::JVM(shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks) : m_vm(std::move(t_vm)),
-                                                                         m_threads(make_shared<kotlin_tracer::ConcurrentList<shared_ptr<ThreadInfo>>>()) {
+JVM::JVM(
+    std::shared_ptr<JavaVM> java_vm,
+    jvmtiEventCallbacks *callbacks
+) : java_vm_(std::move(java_vm)), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
-  this->m_vm->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
-  m_jvmti = pJvmtiEnv;
+  this->java_vm_->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
+  jvmti_env_ = pJvmtiEnv;
   jvmtiCapabilities capabilities;
   capabilities.can_generate_garbage_collection_events = 1;
   capabilities.can_generate_all_class_hook_events = 1;
-  m_jvmti->AddCapabilities(&capabilities);
-  m_jvmti->SetEventCallbacks(t_callbacks, sizeof(*t_callbacks));
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_START, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_COMPILED_METHOD_LOAD, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_THREAD_START, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_LOAD, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_PREPARE, nullptr);
-  m_jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK, nullptr);
+  jvmti_env_->AddCapabilities(&capabilities);
+  jvmti_env_->SetEventCallbacks(callbacks, sizeof(*callbacks));
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_START,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_INIT,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_COMPILED_METHOD_LOAD,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_THREAD_START,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_LOAD,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_PREPARE,
+                                       nullptr);
+  jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
+                                       nullptr);
 }
 
-void kotlin_tracer::JVM::addCurrentThread(::jthread t_thread) {
+void JVM::addCurrentThread(::jthread thread) {
   JNIEnv *env_id;
-  m_vm->GetEnv((void **) &env_id, JNI_VERSION_10);
+  java_vm_->GetEnv((void **) &env_id, JNI_VERSION_10);
   pthread_t currentThread = pthread_self();
   jvmtiThreadInfo info{};
-  auto err = m_jvmti->GetThreadInfo(t_thread, &info);
+  auto err = jvmti_env_->GetThreadInfo(thread, &info);
   if (err != JVMTI_ERROR_NONE) {
-    cout << "Failed to get thead info" << err << endl;
+    logError("Failed to get thead info:" + std::to_string(err));
     return;
   }
-  auto name = make_shared<string>(info.name);
+  auto name = std::make_shared<std::string>(info.name);
   auto threadInfo = std::make_shared<ThreadInfo>(ThreadInfo{name, currentThread});
-  m_threads->push_back(threadInfo);
+  threads_->push_back(threadInfo);
 }
 
-shared_ptr<kotlin_tracer::ConcurrentList<shared_ptr<kotlin_tracer::ThreadInfo>>> kotlin_tracer::JVM::getThreads() {
-  return m_threads;
+std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> JVM::getThreads() {
+  return threads_;
 }
 
-shared_ptr<kotlin_tracer::ThreadInfo> kotlin_tracer::JVM::findThread(const pthread_t &t_thread) {
-  std::function<bool(shared_ptr<ThreadInfo>)> findThread = [t_thread](const shared_ptr<ThreadInfo>& threadInfo) {
-    return pthread_equal(threadInfo->id, t_thread);
+std::shared_ptr<ThreadInfo> JVM::findThread(const pthread_t &thread) {
+  std::function<bool(std::shared_ptr<ThreadInfo>)>
+      findThread = [thread](const std::shared_ptr<ThreadInfo> &threadInfo) {
+    return pthread_equal(threadInfo->id, thread);
   };
-  return m_threads->find(findThread);
+  return threads_->find(findThread);
 }
 
-jvmtiEnv* kotlin_tracer::JVM::getJvmTi() {
-  return m_jvmti;
+jvmtiEnv *JVM::getJvmTi() {
+  return jvmti_env_;
 }
 
-JNIEnv *kotlin_tracer::JVM::getJNIEnv() {
+JNIEnv *JVM::getJNIEnv() {
   JNIEnv *env;
-  m_vm->GetEnv((void **) &env, JNI_VERSION_10);
+  java_vm_->GetEnv((void **) &env, JNI_VERSION_10);
   return env;
 }
 
-void kotlin_tracer::JVM::attachThread() {
+void JVM::attachThread() {
   JNIEnv *pEnv = getJNIEnv();
-  m_vm->AttachCurrentThreadAsDaemon((void **) &pEnv, nullptr);
+  java_vm_->AttachCurrentThreadAsDaemon((void **) &pEnv, nullptr);
 }
 
-void kotlin_tracer::JVM::dettachThread() {
-  m_vm->DetachCurrentThread();
+void JVM::dettachThread() {
+  java_vm_->DetachCurrentThread();
 }
 
-void kotlin_tracer::JVM::initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv) {
+void JVM::initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env) {
   jint counter = 0;
   jclass *classes;
-  jvmtiError err = t_jvmtiEnv->GetLoadedClasses(&counter, &classes);
+  jvmtiError err = jvmti_env->GetLoadedClasses(&counter, &classes);
   if (err != JVMTI_ERROR_NONE) {
     printf("Failed to load classes\n");
     fflush(stdout);
   }
   for (int i = 0; i < counter; i++) {
     jclass klass = (classes)[i];
-    loadMethodsId(t_jvmtiEnv, t_jniEnv, klass);
+    loadMethodsId(jvmti_env, jni_env, klass);
   }
-  t_jvmtiEnv->Deallocate((unsigned char *) classes);
+  jvmti_env->Deallocate((unsigned char *) classes);
 }
 
 // The jmethodIDs should be allocated. Or we'll get 0 method id
-void kotlin_tracer::JVM::loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class) {
+void JVM::loadMethodsId(jvmtiEnv *jvmti_env, __attribute__((unused)) JNIEnv *jni_env, jclass klass) {
   jint method_count = 0;
   jmethodID *methods = nullptr;
-  if (t_jvmtiEnv->GetClassMethods(t_class, &method_count, &methods) == 0) {
-    t_jvmtiEnv->Deallocate((unsigned char *) methods);
+  if (jvmti_env->GetClassMethods(klass, &method_count, &methods) == 0) {
+    jvmti_env->Deallocate((unsigned char *) methods);
   }
+}
 }

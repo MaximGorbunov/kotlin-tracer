@@ -12,6 +12,7 @@
 #include "concurrentCollections/concurrentList.h"
 
 namespace kotlin_tracer {
+
 typedef struct threadInfo {
   const std::shared_ptr<std::string> name;
   const pthread_t id;
@@ -19,27 +20,27 @@ typedef struct threadInfo {
 
 typedef struct InstrumentationMetadata {
   jclass klass;
-  jmethodID instrumentCoroutinesMethod;
-  jmethodID instrumentMethod;
+  jmethodID instrument_coroutines_method;
+  jmethodID instrument_method;
 } InstrumentationMetadata;
 
 class JVM {
  public:
-  JVM(std::shared_ptr<JavaVM> t_vm, jvmtiEventCallbacks *t_callbacks);
-  void addCurrentThread(jthread t_thread);
+  JVM(std::shared_ptr<JavaVM> java_vm, jvmtiEventCallbacks *callbacks);
+  void addCurrentThread(jthread thread);
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> getThreads();
-  std::shared_ptr<ThreadInfo> findThread(const pthread_t &t_thread);
-  jvmtiEnv* getJvmTi();
+  std::shared_ptr<ThreadInfo> findThread(const pthread_t &thread);
+  jvmtiEnv *getJvmTi();
   JNIEnv *getJNIEnv();
   void attachThread();
   void dettachThread();
-  void initializeMethodIds(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv);
-  void loadMethodsId(jvmtiEnv *t_jvmtiEnv, JNIEnv *t_jniEnv, jclass t_class);
+  static void initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env);
+  static void loadMethodsId(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jclass klass);
 
  private:
-  std::shared_ptr<JavaVM> m_vm;
-  jvmtiEnv* m_jvmti;
-  std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> m_threads;
+  std::shared_ptr<JavaVM> java_vm_;
+  jvmtiEnv *jvmti_env_;
+  std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;
 };
 }
 #endif //KOTLIN_TRACER_JVM_H

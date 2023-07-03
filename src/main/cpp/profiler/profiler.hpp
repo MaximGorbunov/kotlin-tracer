@@ -14,36 +14,37 @@ namespace kotlin_tracer {
 
 class Profiler {
  public:
-  static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);
+  static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold);
   static std::shared_ptr<Profiler> getInstance();
   void startProfiler();
   void stop();
   void traceStart();
   void traceEnd(jlong coroutine_id);
-  TraceInfo &findOngoingTrace(const jlong &t_coroutineId);
-  void removeOngoingTrace(const jlong &t_coroutineId);
-  void coroutineCreated(jlong t_coroutineId);
+  TraceInfo &findOngoingTrace(const jlong &coroutine_id);
+  void removeOngoingTrace(const jlong &coroutine_id);
+  void coroutineCreated(jlong coroutine_id);
   void coroutineSuspended(jlong coroutine_id);
-  void coroutineResumed(jlong t_coroutineId);
-  void coroutineCompleted(jlong coroutine_id);
+  void coroutineResumed(jlong coroutine_id);
+  static void coroutineCompleted(jlong coroutine_id);
  private:
-  static std::shared_ptr<Profiler> instance;
-  thread_local static jlong m_coroutineId;
-  std::shared_ptr<JVM> m_jvm;
-  std::unique_ptr<std::thread> m_profilerThread;
-  AsyncGetCallTrace m_asyncTracePtr;
-  TraceStorage m_storage;
-  ConcurrentMap<jmethodID, std::shared_ptr<std::string>> m_methodInfoMap;
-  std::atomic_bool m_active;
-  std::chrono::nanoseconds m_threshold;
+  static std::shared_ptr<Profiler> instance_;
+  thread_local static jlong coroutine_id_;
+  std::shared_ptr<JVM> jvm_;
+  std::unique_ptr<std::thread> profiler_thread_;
+  AsyncGetCallTrace async_trace_ptr_;
+  TraceStorage storage_;
+  ConcurrentMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
+  std::atomic_bool active_;
+  std::chrono::nanoseconds threshold_;
+  std::chrono::milliseconds interval_;
 
-  Profiler(std::shared_ptr<JVM> t_jvm, std::chrono::nanoseconds t_threshold);
-  void signal_action(int t_signo, siginfo_t *t_siginfo, void *t_ucontext);
+  Profiler(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold);
+  void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
   void processTraces();
-  std::shared_ptr<std::string> processMethodInfo(jmethodID t_methodId,
-                                                 jint t_lineno);
-  static inline std::string tickToMessage(jint t_ticks);
-  void printSuspensions(jlong t_coroutineId, std::stringstream &output);
+  std::shared_ptr<std::string> processMethodInfo(jmethodID methodId,
+                                                 jint lineno);
+  static inline std::string tickToMessage(jint ticks);
+  void printSuspensions(jlong coroutine_id, std::stringstream &output);
 };
 }
 #endif // KOTLIN_TRACER_PROFILER_H

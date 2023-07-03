@@ -12,26 +12,26 @@
 namespace kotlin_tracer {
 class Instrumentation {
  public:
-  explicit Instrumentation(std::unique_ptr<ProfilerOptions> t_profilerOptions, std::shared_ptr<JVM> t_jvm) :
-      m_profilerOptions(std::move(t_profilerOptions)), m_jvm(std::move(t_jvm)) {};
+  explicit Instrumentation(std::unique_ptr<ProfilerOptions> profiler_options, std::shared_ptr<JVM> jvm) :
+      profiler_options_(std::move(profiler_options)), jvm_(std::move(jvm)) {};
 
   ~Instrumentation() = default;
 
-  void instrument(JNIEnv *jniEnv, const char *t_name,
-                  jint t_classDataLen,
-                  const unsigned char *t_classData,
-                  jint *t_newClassDataLen,
-                  unsigned char **t_newClassData);
+  void instrument(JNIEnv *jni_env, const char *name,
+                  jint class_data_len,
+                  const unsigned char *class_data,
+                  jint *new_class_data_len,
+                  unsigned char **new_class_data);
   void setInstrumentationMetadata(std::unique_ptr<InstrumentationMetadata> metadata);
   std::unique_ptr<std::string> getJarPath();
  private:
-  std::unique_ptr<ProfilerOptions> m_profilerOptions;
-  std::shared_ptr<JVM> m_jvm;
+  std::unique_ptr<ProfilerOptions> profiler_options_;
+  std::shared_ptr<JVM> jvm_;
+  std::unique_ptr<InstrumentationMetadata> instrumentation_metadata_;
   static const std::string KOTLIN_COROUTINE_PROBES_NAME;
-  std::unique_ptr<InstrumentationMetadata> m_instrumentMetadata;
 
-  jbyteArray instrumentCoroutines(const unsigned char *byteCode, int size);
-  jbyteArray instrumentMethod(const unsigned char *byteCode, int size, const std::string &methodName);
+  jbyteArray instrumentCoroutines(const unsigned char *byte_code, int size);
+  jbyteArray instrumentMethod(const unsigned char *byte_code, int size, const std::string &method_name);
 };
 }
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_INSTRUMENTATION_HPP_
