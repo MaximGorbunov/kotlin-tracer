@@ -1,7 +1,7 @@
 #ifndef KOTLIN_TRACER_CONCURRENTLIST_H
 #define KOTLIN_TRACER_CONCURRENTLIST_H
 
-#include <mutex>
+#include <shared_mutex>
 #include <list>
 #include <functional>
 
@@ -9,27 +9,30 @@ namespace kotlin_tracer {
 template<typename T>
 class ConcurrentList {
  private:
+  typedef std::shared_lock<std::shared_mutex> read_lock;
+  typedef std::unique_lock<std::shared_mutex> write_lock;
   std::list<T> list_;
-  std::mutex list_mutex_;
+  std::shared_mutex list_mutex_;
  public:
   ConcurrentList() : list_(), list_mutex_() {}
 
   void push_back(const T &value) {
-    std::lock_guard guard(list_mutex_);
+    write_lock guard(list_mutex_);
     list_.push_back(value);
   }
 
   void push_front(const T &value) {
-    std::lock_guard guard(list_mutex_);
+    write_lock guard(list_mutex_);
     list_.push_front(value);
   }
 
   bool empty() {
+    read_lock guard(list_mutex_);
     return list_.empty();
   }
 
   T pop_front() {
-    std::lock_guard guard(list_mutex_);
+    write_lock guard(list_mutex_);
 
     if (list_.empty()) {
       return nullptr;
@@ -41,23 +44,24 @@ class ConcurrentList {
   }
 
   T back() {
-    std::lock_guard guard(list_mutex_);
+    read_lock guard(list_mutex_);
     return list_.back();
   }
 
   size_t size() {
+    read_lock guard(list_mutex_);
     return list_.size();
   }
 
   void forEach(const std::function<void(T)> &lambda) {
-    std::lock_guard guard(list_mutex_);
+    read_lock guard(list_mutex_);
     for (auto &element : list_) {
       lambda(element);
     }
   }
 
   T find(const std::function<bool(T)> &lambda) {
-    std::lock_guard guard(list_mutex_);
+    read_lock guard(list_mutex_);
     for (auto &element : list_) {
       if (lambda(element)) {
         return element;

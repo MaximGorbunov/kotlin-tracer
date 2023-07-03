@@ -4,6 +4,7 @@
 #include "jni_md.h"
 #include "trace/traceTime.hpp"
 #include "asyncTrace.hpp"
+#include "../../concurrentCollections/concurrentList.h"
 
 #include <memory>
 #include <list>

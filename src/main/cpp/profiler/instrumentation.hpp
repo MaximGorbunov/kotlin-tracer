@@ -9,6 +9,8 @@
 #include "../vm/jvm.hpp"
 #include "model/args.hpp"
 
+#define KOTLIN_COROUTINE_PROBES_NAME "kotlinx/coroutines/debug/internal/DebugProbesImpl"
+
 namespace kotlin_tracer {
 class Instrumentation {
  public:
@@ -28,7 +30,6 @@ class Instrumentation {
   std::unique_ptr<ProfilerOptions> profiler_options_;
   std::shared_ptr<JVM> jvm_;
   std::unique_ptr<InstrumentationMetadata> instrumentation_metadata_;
-  static const std::string KOTLIN_COROUTINE_PROBES_NAME;
 
   jbyteArray instrumentCoroutines(const unsigned char *byte_code, int size);
   jbyteArray instrumentMethod(const unsigned char *byte_code, int size, const std::string &method_name);

@@ -22,14 +22,14 @@ class TraceStorage {
   bool addOngoingTraceInfo(const TraceInfo &trace_info);
   void addSuspensionInfo(const std::shared_ptr<SuspensionInfo> &suspension_info);
   std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong coroutine_id);
-  std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong coroutine_id);
+  std::shared_ptr<kotlin_tracer::ConcurrentList<std::shared_ptr<SuspensionInfo>>> getSuspensions(jlong coroutine_id) const;
   void removeOngoingTraceInfo(const jlong &coroutine_id);
   TraceInfo &findOngoingTraceInfo(const jlong &coroutine_id);
   std::shared_ptr<RawCallTraceRecord> removeRawTraceHeader();
-  std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong coroutine_id);
+  std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong coroutine_id) const;
   void addChildCoroutine(jlong coroutine_id, jlong parent_coroutine_id);
   void createChildCoroutineStorage(jlong coroutine_id);
-  bool containsChildCoroutineStorage(jlong coroutine_id);
+  bool containsChildCoroutineStorage(jlong coroutine_id) const;
 
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;

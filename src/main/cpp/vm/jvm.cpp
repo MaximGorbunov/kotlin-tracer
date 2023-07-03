@@ -1,7 +1,8 @@
-#include "jvm.hpp"
-
 #include <memory>
 #include <utility>
+#include <string>
+
+#include "jvm.hpp"
 #include "../utils/log.h"
 
 namespace kotlin_tracer {
@@ -11,7 +12,7 @@ JVM::JVM(
     jvmtiEventCallbacks *callbacks
 ) : java_vm_(std::move(java_vm)), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
-  this->java_vm_->GetEnv((void **) &pJvmtiEnv, JVMTI_VERSION_11);
+  this->java_vm_->GetEnv(reinterpret_cast<void **>(&pJvmtiEnv), JVMTI_VERSION_11);
   jvmti_env_ = pJvmtiEnv;
   jvmtiCapabilities capabilities;
   capabilities.can_generate_garbage_collection_events = 1;
@@ -40,7 +41,7 @@ JVM::JVM(
 
 void JVM::addCurrentThread(::jthread thread) {
   JNIEnv *env_id;
-  java_vm_->GetEnv((void **) &env_id, JNI_VERSION_10);
+  java_vm_->GetEnv(reinterpret_cast<void **>(&env_id), JNI_VERSION_10);
   pthread_t currentThread = pthread_self();
   jvmtiThreadInfo info{};
   auto err = jvmti_env_->GetThreadInfo(thread, &info);
@@ -71,13 +72,13 @@ jvmtiEnv *JVM::getJvmTi() {
 
 JNIEnv *JVM::getJNIEnv() {
   JNIEnv *env;
-  java_vm_->GetEnv((void **) &env, JNI_VERSION_10);
+  java_vm_->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_10);
   return env;
 }
 
 void JVM::attachThread() {
   JNIEnv *pEnv = getJNIEnv();
-  java_vm_->AttachCurrentThreadAsDaemon((void **) &pEnv, nullptr);
+  java_vm_->AttachCurrentThreadAsDaemon(reinterpret_cast<void **>(&pEnv), nullptr);
 }
 
 void JVM::dettachThread() {
@@ -107,4 +108,4 @@ void JVM::loadMethodsId(jvmtiEnv *jvmti_env, __attribute__((unused)) JNIEnv *jni
     jvmti_env->Deallocate((unsigned char *) methods);
   }
 }
-}
+}  // namespace kotlin_tracer

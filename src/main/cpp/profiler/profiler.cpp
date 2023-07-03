@@ -2,30 +2,33 @@
 #include <memory>
 #include <utility>
 #include <cstring>
-#include <sstream>
+#include <list>
+#include <string>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
 #include "../utils/log.h"
+#include "../utils/suspensionPlot.hpp"
 
 using std::shared_ptr, std::thread, std::string, std::to_string, std::make_unique, std::runtime_error,
     std::make_shared, std::list, std::size;
 
 namespace kotlin_tracer {
 
-static thread_local long currentCoroutineId = NOT_FOUND;
+static thread_local int64_t currentCoroutineId = NOT_FOUND;
 
 shared_ptr<Profiler> Profiler::instance_;
 thread_local jlong Profiler::coroutine_id_;
+static std::atomic_long trace_counter(0);
 
 std::shared_ptr<Profiler> Profiler::getInstance() {
   return Profiler::instance_;
 }
 
 std::shared_ptr<Profiler> Profiler::create(std::shared_ptr<JVM> jvm,
-                                           std::chrono::nanoseconds threshold) {
+                                           std::chrono::nanoseconds threshold, const string &output_path) {
   if (instance_ == nullptr) {
-    instance_ = shared_ptr<Profiler>(new Profiler(std::move(jvm), threshold));
+    instance_ = shared_ptr<Profiler>(new Profiler(std::move(jvm), threshold, output_path));
   }
   return instance_;
 }
@@ -36,7 +39,7 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
   if (!active_) return;
   auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace{});
   trace->env_id = jvm_->getJNIEnv();
-  trace->frames = (ASGCTCallFrame *) calloc(30, sizeof(ASGCTCallFrame));
+  trace->frames = reinterpret_cast<ASGCTCallFrame *>(calloc(30, sizeof(ASGCTCallFrame)));
   trace->num_frames = 0;
   async_trace_ptr_(trace.get(), 30, ucontext);
   if (trace->num_frames < 0) {
@@ -47,12 +50,12 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
   }
 }
 
-Profiler::Profiler(shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold)
+Profiler::Profiler(shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, string output_path)
     : jvm_(std::move(jvm)),
       storage_(),
       method_info_map_(),
       threshold_(threshold),
-      interval_(std::chrono::milliseconds(1000)) {
+      interval_(std::chrono::milliseconds(1000)), output_path_(std::move(output_path)) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->async_trace_ptr_ = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
   struct sigaction action{};
@@ -119,48 +122,7 @@ void Profiler::traceEnd(jlong coroutine_id) {
                + to_string(elapsedTime));
   logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
-    std::stringstream output;
-    output << "[Kotlin-tracer]===============================================\n";
-    output << "[Kotlin-tracer] Trace info: \n";
-    output << "[Kotlin-tracer] Coroutine id: " << coroutine_id << "\n";
-    output << "[Kotlin-tracer] Time: " << elapsedTime << "\n";
-    printSuspensions(coroutine_id, output);
-    output << "[Kotlin-tracer]===============================================";
-    logInfo(output.str());
-  }
-}
-
-void Profiler::printSuspensions(jlong coroutine_id, std::stringstream &output) {
-  auto suspensions = storage_.getSuspensions(coroutine_id);
-  std::function<void(shared_ptr<SuspensionInfo>)>
-      suspensionPrint = [&output](const shared_ptr<SuspensionInfo> &suspension) {
-    auto suspendTime = suspension->end - suspension->start;
-    output << "[Kotlin-tracer]===============================================\n";
-    if (suspendTime >= 0) {
-      output << "[Kotlin-tracer] Suspended time: " << to_string(suspendTime) << "ns\n";
-    } else {
-      output << "[Kotlin-tracer] Suspended time: NOT_ENDED\n";
-    }
-    output << "[Kotlin-tracer] Suspend stack trace: \n";
-    for (auto &frame : *suspension->suspension_stack_trace) {
-      output << *frame << "\n";
-    }
-  };
-  if (suspensions != nullptr) {
-    output << "[Kotlin-tracer] Suspensions count: " << suspensions->size() << "\n";
-    suspensions->forEach(suspensionPrint);
-  } else {
-    output << "[Kotlin-tracer] Suspensions count: 0\n";
-  }
-  if (storage_.containsChildCoroutineStorage(coroutine_id)) {
-    std::function<void(jlong)> childCoroutinePrint = [&output, this](jlong childCoroutine) {
-      printSuspensions(childCoroutine, output);
-    };
-    auto children = storage_.getChildCoroutines(coroutine_id);
-    output << "[Kotlin-tracer] Children count: " << children->size() << "\n";
-    children->forEach(childCoroutinePrint);
-  } else {
-    output << "[Kotlin-tracer] Children count: 0\n";
+    plot(output_path_ + "/trace" + to_string(++trace_counter) +".html", traceInfo, storage_);
   }
 }
 
@@ -190,7 +152,6 @@ void Profiler::processTraces() {
     storage_.addProcessedTrace(processedRecord);
     rawRecord = storage_.removeRawTraceHeader();
   }
-
 }
 
 shared_ptr<string> Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
@@ -296,4 +257,4 @@ void Profiler::coroutineCompleted(jlong coroutine_id) {
   currentCoroutineId = NOT_FOUND;
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
-}
+}  // namespace kotlin_tracer

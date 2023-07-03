@@ -30,4 +30,5 @@ TEST(InstrumentationTest, CheckPlainFunctionInstrumentation) {
   checkExecutionTime(temp_file_path, 100000000, 200000000);
   std::filesystem::remove(temp_file_path->string());
 }
-}
+
+}  // namespace kotlin_tracer

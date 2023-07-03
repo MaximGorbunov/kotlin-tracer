@@ -60,4 +60,4 @@ TEST(ArgsParserTest, TestOutputPathDefault) {
   EXPECT_EQ(milliseconds(1000), options->threshold);
   EXPECT_EQ(std::filesystem::current_path().string(), *options->output_path);
 }
-}
+}  // namespace kotlin_tracer

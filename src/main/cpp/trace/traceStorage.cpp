@@ -1,19 +1,24 @@
 #include "traceStorage.hpp"
 
 #include <memory>
+#include <utility>
 
 namespace kotlin_tracer {
 using std::shared_ptr, std::unique_ptr, std::list;
 
-TraceStorage::TraceStorage() : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
-                               processed_list_(std::make_unique<ConcurrentList<shared_ptr < ProcessedTraceRecord>>>()),
-                               ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-                               child_coroutines_map_(std::make_unique<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
-                               suspensions_info_map_(std::make_unique<ConcurrentMap<jlong, shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>>>>()) {
+TraceStorage::TraceStorage(
+) : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
+    processed_list_(std::make_unique<ConcurrentList<shared_ptr<ProcessedTraceRecord>>>()),
+    ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
+    child_coroutines_map_(std::make_unique<ConcurrentMap<jlong,
+                                                         std::shared_ptr<ConcurrentList<jlong>>>>()),
+    suspensions_info_map_(std::make_unique<ConcurrentMap<jlong,
+                                                         shared_ptr<ConcurrentList<shared_ptr<
+                                                             SuspensionInfo>>>>>()) {
 }
 
 void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
-                               pthread_t thread, long long coroutine_id) {
+                               pthread_t thread, int64_t coroutine_id) {
   auto record = std::make_shared<RawCallTraceRecord>(RawCallTraceRecord{});
   record->time = time;
   record->trace = std::move(trace);
@@ -44,21 +49,17 @@ void TraceStorage::removeOngoingTraceInfo(const jlong &coroutine_id) {
 }
 
 void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspension_info) {
-  auto creationLambda = []() { return std::make_shared<ConcurrentList < shared_ptr<SuspensionInfo>> > (); };
+  auto creationLambda = []() { return std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>(); };
   auto list = suspensions_info_map_->findOrInsert(suspension_info->coroutine_id, creationLambda);
   list->push_back(suspension_info);
 }
 
-shared_ptr<ConcurrentList < shared_ptr<SuspensionInfo>>>
-TraceStorage::getSuspensions(jlong
-coroutine_id) {
-if (suspensions_info_map_->
-contains(coroutine_id)
-) {
-return suspensions_info_map_->
-get(coroutine_id);
-} else return {
-nullptr};
+shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>> TraceStorage::getSuspensions(jlong coroutine_id) const {
+  if (suspensions_info_map_->contains(coroutine_id)) {
+    return suspensions_info_map_->get(coroutine_id);
+  } else {
+    return {nullptr};
+  }
 }
 
 shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong coroutine_id) {
@@ -68,10 +69,12 @@ shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong coroutine_i
   };
   if (suspensions_info_map_->contains(coroutine_id)) {
     return suspensions_info_map_->get(coroutine_id)->find(firstNonEndedSuspensionPredicate);
-  } else return nullptr;
+  } else {
+    return nullptr;
+  }
 }
 
-shared_ptr<ConcurrentList<jlong>>TraceStorage::getChildCoroutines(jlong coroutine_id) {
+shared_ptr<ConcurrentList<jlong>> TraceStorage::getChildCoroutines(jlong coroutine_id) const {
   return child_coroutines_map_->get(coroutine_id);
 }
 
@@ -80,10 +83,10 @@ void TraceStorage::addChildCoroutine(jlong coroutine_id, jlong parent_coroutine_
 }
 
 void TraceStorage::createChildCoroutineStorage(jlong coroutine_id) {
-  child_coroutines_map_->insert(coroutine_id, std::make_shared<ConcurrentList < jlong>>());
+  child_coroutines_map_->insert(coroutine_id, std::make_shared<ConcurrentList<jlong>>());
 }
 
-bool TraceStorage::containsChildCoroutineStorage(jlong coroutine_id) {
+bool TraceStorage::containsChildCoroutineStorage(jlong coroutine_id) const {
   return child_coroutines_map_->contains(coroutine_id);
 }
-}
+}  // namespace kotlin_tracer
