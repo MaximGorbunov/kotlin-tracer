@@ -3,7 +3,6 @@ project(kotlin-tracer)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_CPPLINT "cpplint;filter=-legal/copyright")
 
 link_directories($ENV{JDK_DIR}/lib/server/)
 link_libraries(jvm)
