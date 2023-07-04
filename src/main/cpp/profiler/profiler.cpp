@@ -42,9 +42,6 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
   trace->frames = reinterpret_cast<ASGCTCallFrame *>(calloc(30, sizeof(ASGCTCallFrame)));
   trace->num_frames = 0;
   async_trace_ptr_(trace.get(), 30, ucontext);
-  if (trace->num_frames < 0) {
-    logDebug("[Kotlin-tracer] frames not found: " + tickToMessage(trace->num_frames));
-  }
   if (trace->num_frames > 0) {
     getInstance()->storage_.addRawTrace(currentTimeMs(), trace, pthread_self(), coroutine_id_);
   }

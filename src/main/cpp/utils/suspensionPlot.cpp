@@ -52,33 +52,60 @@ static unique_ptr<string> bottom_half = std::make_unique<string>(
     "</html>\n"
 );
 
+static inline std::unique_ptr<std::string> printSuspension(
+    const shared_ptr<SuspensionInfo> &suspension,
+    std::ofstream &file,
+    const std::string &parent
+) {
+  std::stringstream stack_trace_stream;
+  auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::nanoseconds(suspension->end - suspension->start));
+  for (auto &frame : *suspension->suspension_stack_trace) {
+    stack_trace_stream << *frame << "<br>";
+  }
+  auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
+  file << "data[0].labels.push('" + *stack_trace + "');\n";
+  file << "data[0].parents.push('" + parent + "');\n";
+  if (suspendTime.count() >= 0) {
+    file << "data[0].values.push(" + std::to_string(suspendTime.count()) + ");\n";
+  } else {
+    file << "data[0].values.push(-1);\n";
+  }
+  return stack_trace;
+}
+
 static void printSuspensions(const string &parent,
                              jlong coroutine_id,
                              std::ofstream &file,
                              const TraceStorage &storage) {
   auto suspensions = storage.getSuspensions(coroutine_id);
-  auto coroutineName = string("coroutine#" + std::to_string(coroutine_id));
+  auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
   if (suspensions != nullptr) {
     file << "data[0].labels.push('" + coroutineName + "');\n";
     file << "data[0].parents.push('" + parent + "');\n";
     file << "data[0].values.push(0);\n";
     logInfo("Suspensions: " + std::to_string(suspensions->size()));
+    std::list<std::shared_ptr<SuspensionInfo>> chain;
+    shared_ptr<SuspensionInfo> lastSuspensionInfo;
     std::function<void(shared_ptr<SuspensionInfo>)>
-        suspensionPrint = [&file, &coroutineName](const shared_ptr<SuspensionInfo> &suspension) {
-      auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(
-          suspension->end - suspension->start));
-      std::stringstream stackTrace;
-      for (auto &frame : *suspension->suspension_stack_trace) {
-        stackTrace << *frame << "<br>";
-      }
-      file << "data[0].labels.push('" + stackTrace.str() + "');\n";
-      file << "data[0].parents.push('" + coroutineName + "');\n";
-      if (suspendTime.count() >= 0) {
-        file << "data[0].values.push(" + std::to_string(suspendTime.count()) + ");\n";
-      } else {
-        file << "data[0].values.push(-1);\n";
-      }
-    };
+        suspensionPrint =
+        [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
+          if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
+            chain.push_front(suspension);
+          } else {
+            if (!chain.empty()) {
+              auto chain_parent = std::make_unique<string>(coroutineName);
+              while (!chain.empty()) {
+                auto current = chain.front();
+                chain.pop_front();
+                chain_parent = printSuspension(current, file, *chain_parent);
+                current = chain.front();
+              }
+            }
+            printSuspension(suspension, file, coroutineName);
+          }
+          lastSuspensionInfo = suspension;
+        };
     suspensions->forEach(suspensionPrint);
   }
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
