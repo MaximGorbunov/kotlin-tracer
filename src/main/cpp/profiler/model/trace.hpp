@@ -16,7 +16,7 @@ typedef struct RawCallTraceRecord {
   int trace_count;
   std::shared_ptr<ASGCTCallTrace> trace;
   pthread_t thread;
-  long long coroutine_id;
+  int64_t coroutine_id;
 } RawCallTraceRecord;
 
 typedef struct ProcessedTraceRecord {

@@ -12,9 +12,7 @@ TraceStorage::TraceStorage(
     ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
     child_coroutines_map_(std::make_unique<ConcurrentMap<jlong,
                                                          std::shared_ptr<ConcurrentList<jlong>>>>()),
-    suspensions_info_map_(std::make_unique<ConcurrentMap<jlong,
-                                                         shared_ptr<ConcurrentList<shared_ptr<
-                                                             SuspensionInfo>>>>>()) {
+    coroutine_info_map_(std::make_unique<ConcurrentMap<jlong, shared_ptr<CoroutineInfo>>>()) {
 }
 
 void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
@@ -49,14 +47,23 @@ void TraceStorage::removeOngoingTraceInfo(const jlong &coroutine_id) {
 }
 
 void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspension_info) {
-  auto creationLambda = []() { return std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>(); };
-  auto list = suspensions_info_map_->findOrInsert(suspension_info->coroutine_id, creationLambda);
-  list->push_back(suspension_info);
+  auto coroutine_info = coroutine_info_map_->at(suspension_info->coroutine_id);
+  coroutine_info->suspensions_list->push_back(suspension_info);
 }
 
-shared_ptr<ConcurrentList<shared_ptr<SuspensionInfo>>> TraceStorage::getSuspensions(jlong coroutine_id) const {
-  if (suspensions_info_map_->contains(coroutine_id)) {
-    return suspensions_info_map_->get(coroutine_id);
+void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
+  coroutine_info_map_->insert(
+      coroutine_id,
+      std::make_shared<CoroutineInfo>(CoroutineInfo{
+          0,
+          0,
+          std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
+      }));
+}
+
+shared_ptr<TraceStorage::CoroutineInfo> TraceStorage::getCoroutineInfo(jlong coroutine_id) const {
+  if (coroutine_info_map_->contains(coroutine_id)) {
+    return coroutine_info_map_->get(coroutine_id);
   } else {
     return {nullptr};
   }
@@ -67,8 +74,8 @@ shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong coroutine_i
       firstNonEndedSuspensionPredicate = [](const shared_ptr<SuspensionInfo> &suspensionInfo) {
     return suspensionInfo->end == 0;
   };
-  if (suspensions_info_map_->contains(coroutine_id)) {
-    return suspensions_info_map_->get(coroutine_id)->find(firstNonEndedSuspensionPredicate);
+  if (coroutine_info_map_->contains(coroutine_id)) {
+    return coroutine_info_map_->get(coroutine_id)->suspensions_list->find(firstNonEndedSuspensionPredicate);
   } else {
     return nullptr;
   }

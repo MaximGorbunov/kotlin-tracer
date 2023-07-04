@@ -25,7 +25,7 @@ class Profiler {
   void coroutineCreated(jlong coroutine_id);
   void coroutineSuspended(jlong coroutine_id);
   void coroutineResumed(jlong coroutine_id);
-  static void coroutineCompleted(jlong coroutine_id);
+  void coroutineCompleted(jlong coroutine_id);
  private:
   static std::shared_ptr<Profiler> instance_;
   thread_local static jlong coroutine_id_;

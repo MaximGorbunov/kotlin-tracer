@@ -212,6 +212,7 @@ void Profiler::coroutineCreated(jlong coroutine_id) {
   auto thread_info = jvm_->findThread(current_thread);
   logDebug("coroutineCreated tid: " + *thread_info->name + " cid: " + to_string(coroutine_id) +
       " from parentId: " + to_string(currentCoroutineId) + '\n');
+  storage_.createCoroutineInfo(coroutine_id);
   if (storage_.containsChildCoroutineStorage(parent_id)) {
     storage_.addChildCoroutine(coroutine_id, parent_id);
     storage_.createChildCoroutineStorage(coroutine_id);
@@ -220,6 +221,12 @@ void Profiler::coroutineCreated(jlong coroutine_id) {
 
 void Profiler::coroutineSuspended(jlong coroutine_id) {
   currentCoroutineId = NOT_FOUND;
+
+  auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  if (coroutine_info->last_resume > 0) {
+    coroutine_info->running_time += (currentTimeNs() - coroutine_info->last_resume);
+    coroutine_info->last_resume = 0;  // To not count multiple times chain
+  }
   ::jthread thread;
   jvmtiFrameInfo frames[20];
   jint framesCount;
@@ -243,6 +250,7 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
   auto thread_info = jvm_->findThread(current_thread);
   currentCoroutineId = coroutine_id;
   coroutine_id_ = coroutine_id;
+  storage_.getCoroutineInfo(coroutine_id)->last_resume = currentTimeNs();
   auto suspensionInfo = storage_.getLastSuspensionInfo(coroutine_id);
   if (suspensionInfo != nullptr) {
     suspensionInfo->end = currentTimeNs();
@@ -252,6 +260,8 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
 
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   currentCoroutineId = NOT_FOUND;
+  auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  coroutine_info->running_time += (currentTimeNs() - coroutine_info->last_resume);
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
 }  // namespace kotlin_tracer

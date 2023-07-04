@@ -10,7 +10,7 @@
 #include "agent.hpp"
 
 using std::function, std::shared_mutex, std::shared_ptr, std::unique_ptr,
-    std::make_unique, std::mutex, std::lock_guard, std::string,
+    std::make_unique, std::lock_guard, std::string,
     std::to_string, std::runtime_error;
 
 typedef std::shared_lock<std::shared_mutex> read_lock;

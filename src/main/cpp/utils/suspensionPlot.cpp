@@ -2,6 +2,8 @@
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <list>
+
 #include "log.h"
 
 namespace kotlin_tracer {
@@ -78,36 +80,41 @@ static void printSuspensions(const string &parent,
                              jlong coroutine_id,
                              std::ofstream &file,
                              const TraceStorage &storage) {
-  auto suspensions = storage.getSuspensions(coroutine_id);
+  auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
   auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
-  if (suspensions != nullptr) {
-    file << "data[0].labels.push('" + coroutineName + "');\n";
-    file << "data[0].parents.push('" + parent + "');\n";
-    file << "data[0].values.push(0);\n";
-    logInfo("Suspensions: " + std::to_string(suspensions->size()));
-    std::list<std::shared_ptr<SuspensionInfo>> chain;
-    shared_ptr<SuspensionInfo> lastSuspensionInfo;
-    std::function<void(shared_ptr<SuspensionInfo>)>
-        suspensionPrint =
-        [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
-          if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
-            chain.push_front(suspension);
-          } else {
-            if (!chain.empty()) {
-              auto chain_parent = std::make_unique<string>(coroutineName);
-              while (!chain.empty()) {
-                auto current = chain.front();
-                chain.pop_front();
-                chain_parent = printSuspension(current, file, *chain_parent);
-                current = chain.front();
-              }
+  auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::nanoseconds(coroutine_info->running_time));
+
+  file << "data[0].labels.push('" + coroutineName + "');\n";
+  file << "data[0].parents.push('" + parent + "');\n";
+  file << "data[0].values.push(0);\n";
+
+  file << "data[0].labels.push('running');\n";
+  file << "data[0].parents.push('" + coroutineName + "');\n";
+  file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+
+  logInfo("Suspensions: " + std::to_string(coroutine_info->suspensions_list->size()));
+  std::list<std::shared_ptr<SuspensionInfo>> chain;
+  shared_ptr<SuspensionInfo> lastSuspensionInfo;
+  std::function<void(shared_ptr<SuspensionInfo>)>
+      suspensionPrint =
+      [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
+        if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
+          chain.push_front(suspension);
+        } else {
+          if (!chain.empty()) {
+            auto chain_parent = std::make_unique<string>(coroutineName);
+            while (!chain.empty()) {
+              auto current = chain.front();
+              chain.pop_front();
+              chain_parent = printSuspension(current, file, *chain_parent);
             }
-            printSuspension(suspension, file, coroutineName);
           }
-          lastSuspensionInfo = suspension;
-        };
-    suspensions->forEach(suspensionPrint);
-  }
+          printSuspension(suspension, file, coroutineName);
+        }
+        lastSuspensionInfo = suspension;
+      };
+  coroutine_info->suspensions_list->forEach(suspensionPrint);
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
     std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage](jlong childCoroutine) {
       printSuspensions(coroutineName, childCoroutine, file, storage);
@@ -122,7 +129,7 @@ void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &s
   file.open(path);
   if (file.is_open()) {
     file << *top_half;
-    auto suspensions = storage.getSuspensions(trace_info.coroutine_id);
+    auto suspensions = storage.getCoroutineInfo(trace_info.coroutine_id);
     printSuspensions("", trace_info.coroutine_id, file, storage);
     file << *bottom_half;
   } else {
