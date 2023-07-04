@@ -14,7 +14,11 @@ namespace kotlin_tracer {
 
 class Profiler {
  public:
-  static std::shared_ptr<Profiler> create(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, const std::string &output_path);
+  static std::shared_ptr<Profiler> create(
+      std::shared_ptr<JVM> jvm,
+      std::chrono::nanoseconds threshold,
+      const std::string &output_path,
+      std::chrono::nanoseconds interval);
   static std::shared_ptr<Profiler> getInstance();
   void startProfiler();
   void stop();
@@ -36,10 +40,10 @@ class Profiler {
   ConcurrentMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
   std::atomic_bool active_;
   std::chrono::nanoseconds threshold_;
-  std::chrono::milliseconds interval_;
+  std::chrono::nanoseconds interval_;
   std::string output_path_;
 
-  Profiler(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, std::string output_path);
+  Profiler(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, std::string output_path, std::chrono::nanoseconds interval);
   void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
   void processTraces();
   std::shared_ptr<std::string> processMethodInfo(jmethodID methodId,

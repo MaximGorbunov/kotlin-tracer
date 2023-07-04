@@ -26,9 +26,11 @@ std::shared_ptr<Profiler> Profiler::getInstance() {
 }
 
 std::shared_ptr<Profiler> Profiler::create(std::shared_ptr<JVM> jvm,
-                                           std::chrono::nanoseconds threshold, const string &output_path) {
+                                           std::chrono::nanoseconds threshold,
+                                           const string &output_path,
+                                           const std::chrono::nanoseconds interval) {
   if (instance_ == nullptr) {
-    instance_ = shared_ptr<Profiler>(new Profiler(std::move(jvm), threshold, output_path));
+    instance_ = shared_ptr<Profiler>(new Profiler(std::move(jvm), threshold, output_path, interval));
   }
   return instance_;
 }
@@ -47,12 +49,16 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
   }
 }
 
-Profiler::Profiler(shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, string output_path)
+Profiler::Profiler(
+    shared_ptr<JVM> jvm,
+    std::chrono::nanoseconds threshold,
+    string output_path,
+    std::chrono::nanoseconds interval)
     : jvm_(std::move(jvm)),
       storage_(),
       method_info_map_(),
       threshold_(threshold),
-      interval_(std::chrono::milliseconds(1000)), output_path_(std::move(output_path)) {
+      interval_(interval), output_path_(std::move(output_path)) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->async_trace_ptr_ = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
   struct sigaction action{};
@@ -146,7 +152,7 @@ void Profiler::processTraces() {
       methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
     }
     processedRecord->method_info = std::move(methods);
-    storage_.addProcessedTrace(processedRecord);
+    storage_.addProcessedTrace(rawRecord->coroutine_id, processedRecord);
     rawRecord = storage_.removeRawTraceHeader();
   }
 }

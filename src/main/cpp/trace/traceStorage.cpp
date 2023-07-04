@@ -4,11 +4,11 @@
 #include <utility>
 
 namespace kotlin_tracer {
-using std::shared_ptr, std::unique_ptr, std::list;
+using std::shared_ptr, std::make_shared, std::unique_ptr, std::list;
 
 TraceStorage::TraceStorage(
 ) : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
-    processed_list_(std::make_unique<ConcurrentList<shared_ptr<ProcessedTraceRecord>>>()),
+    processed_map_(std::make_unique<TraceMap>()),
     ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
     child_coroutines_map_(std::make_unique<ConcurrentMap<jlong,
                                                          std::shared_ptr<ConcurrentList<jlong>>>>()),
@@ -30,8 +30,14 @@ shared_ptr<RawCallTraceRecord> TraceStorage::removeRawTraceHeader() {
   return raw_list_->pop_front();
 }
 
-void TraceStorage::addProcessedTrace(const shared_ptr<ProcessedTraceRecord> &record) {
-  processed_list_->push_back(record);
+void TraceStorage::addProcessedTrace(jlong coroutine_id, const shared_ptr<ProcessedTraceRecord> &record) {
+  if (processed_map_->contains(coroutine_id)) {
+    processed_map_->at(coroutine_id)->push_back(record);
+  } else {
+    auto list = make_shared<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>>();
+    list->push_back(record);
+    processed_map_->insert(coroutine_id, list);
+  }
 }
 
 bool TraceStorage::addOngoingTraceInfo(const TraceInfo &trace_info) {
@@ -95,5 +101,13 @@ void TraceStorage::createChildCoroutineStorage(jlong coroutine_id) {
 
 bool TraceStorage::containsChildCoroutineStorage(jlong coroutine_id) const {
   return child_coroutines_map_->contains(coroutine_id);
+}
+
+TraceStorage::Traces TraceStorage::getProcessedTraces(jlong coroutine_id) const {
+  if (processed_map_->contains(coroutine_id)) {
+    return processed_map_->at(coroutine_id);
+  } else {
+    return {nullptr};
+  }
 }
 }  // namespace kotlin_tracer

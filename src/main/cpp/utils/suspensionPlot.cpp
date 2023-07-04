@@ -89,11 +89,18 @@ static void printSuspensions(const string &parent,
   file << "data[0].parents.push('" + parent + "');\n";
   file << "data[0].values.push(0);\n";
 
-  file << "data[0].labels.push('running');\n";
+  file << "data[0].labels.push('running#" + std::to_string(coroutine_id) + "');\n";
   file << "data[0].parents.push('" + coroutineName + "');\n";
   file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
 
-  logInfo("Suspensions: " + std::to_string(coroutine_info->suspensions_list->size()));
+  auto traces = storage.getProcessedTraces(coroutine_id);
+  if (traces != nullptr) {
+    logDebug("Processed traces: " + std::to_string(traces->size()));
+  } else {
+    logDebug("Processed traces: 0");
+  }
+
+  logDebug("Suspensions: " + std::to_string(coroutine_info->suspensions_list->size()));
   std::list<std::shared_ptr<SuspensionInfo>> chain;
   shared_ptr<SuspensionInfo> lastSuspensionInfo;
   std::function<void(shared_ptr<SuspensionInfo>)>

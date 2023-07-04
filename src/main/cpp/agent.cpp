@@ -62,6 +62,7 @@ void JNICALL VMInit(
                        "kotlin-tracer.jar",
                        agent->getJVM());
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
+  agent->getProfiler()->startProfiler();
 }
 
 void JNICALL ClassPrepare(
@@ -77,7 +78,6 @@ void JNICALL VMStart(
     __attribute__((unused)) jvmtiEnv *jvmti_env,
     __attribute__((unused)) JNIEnv *jni_env
 ) {
-  agent->getProfiler()->startProfiler();
 }
 
 [[maybe_unused]]
