@@ -32,16 +32,17 @@ class Profiler {
   void coroutineCompleted(jlong coroutine_id);
  private:
   static std::shared_ptr<Profiler> instance_;
-  thread_local static jlong coroutine_id_;
   std::shared_ptr<JVM> jvm_;
   std::unique_ptr<std::thread> profiler_thread_;
   AsyncGetCallTrace async_trace_ptr_;
   TraceStorage storage_;
   ConcurrentMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
-  std::atomic_bool active_;
+  std::atomic_flag active_;
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
   std::string output_path_;
+  ASGCTCallTrace* trace_;
+  std::atomic_long trace_coroutine_id;
 
   Profiler(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, std::string output_path, std::chrono::nanoseconds interval);
   void signal_action(int signo, siginfo_t *siginfo, void *ucontext);

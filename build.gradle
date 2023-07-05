@@ -19,7 +19,7 @@ test {
     }
     environment "ASAN_OPTIONS", "detect_leaks=0"
     testLogging.showStandardStreams = true
-    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=100,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
     outputs.upToDateWhen {false}
 }
 

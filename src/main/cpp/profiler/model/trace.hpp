@@ -20,9 +20,7 @@ typedef struct RawCallTraceRecord {
 } RawCallTraceRecord;
 
 typedef struct ProcessedTraceRecord {
-  TraceTime time;
-  int trace_count;
-  std::shared_ptr<std::list<std::shared_ptr<std::string>>> method_info;
+  std::shared_ptr<std::list<std::shared_ptr<std::string>>> stack_trace;
   std::shared_ptr<std::string> thread_name;
 } ProcessedTraceRecord;
 

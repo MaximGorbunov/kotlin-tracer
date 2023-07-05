@@ -44,7 +44,6 @@ static unique_ptr<string> top_half = std::make_unique<string>(
     "    title: {"
     "      text: 'Suspensions'"
     "    },"
-    "    margin: {l: 150},"
     "    showlegend: true"
     "  };\n"
 );
@@ -76,6 +75,58 @@ static inline std::unique_ptr<std::string> printSuspension(
   return stack_trace;
 }
 
+struct TraceCount;
+struct Level {
+  std::list<TraceCount> traces;
+};
+
+struct TraceCount {
+  int id;
+  std::shared_ptr<std::string> method;
+  int64_t count;
+  unique_ptr<Level> next;
+};
+
+static void printTraceLevel(Level *level, std::ofstream &file, const std::string &parent) {
+  if (level != nullptr) {
+    for (const auto &item : level->traces) {
+      auto trace_name = "[" + std::to_string(item.id) + "]" + *item.method;
+      file << "data[0].labels.push('" + trace_name + "');\n";
+      file << "data[0].parents.push('" + parent + "');\n";
+      file << "data[0].values.push(" + std::to_string(item.count) + ");\n";
+      printTraceLevel(item.next.get(), file, trace_name);
+    }
+  }
+}
+
+static std::atomic_int counter = 0;
+
+static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file, const string &parent) {
+  unique_ptr<Level> root = std::make_unique<Level>(Level{});
+
+  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root](const shared_ptr<ProcessedTraceRecord>& trace_record) {
+    Level *current_level = root.get();
+    for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
+      --frame;
+      bool found = false;
+      for (auto &trace_count : current_level->traces) {
+        if (*trace_count.method == **frame) {
+          found = true;
+          ++trace_count.count;
+          current_level = trace_count.next.get();
+        }
+      }
+      if (!found) {
+        auto next_level = std::make_unique<Level>(Level{});
+        current_level->traces.push_back(TraceCount{++counter, *frame, 1L, std::move(next_level)});
+        current_level = current_level->traces.back().next.get();
+      }
+    }
+  };
+  traces->forEach(func);
+  printTraceLevel(root.get(), file, parent);
+}
+
 static void printSuspensions(const string &parent,
                              jlong coroutine_id,
                              std::ofstream &file,
@@ -96,6 +147,7 @@ static void printSuspensions(const string &parent,
   auto traces = storage.getProcessedTraces(coroutine_id);
   if (traces != nullptr) {
     logDebug("Processed traces: " + std::to_string(traces->size()));
+    printTraces(traces, file, "running#" + std::to_string(coroutine_id));
   } else {
     logDebug("Processed traces: 0");
   }

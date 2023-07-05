@@ -1,6 +1,6 @@
 add_compile_options(
-        "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
-        "$<$<CONFIG:DEBUG>:-DDEBUG=true;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
+        "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
+        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
 )
 
 add_link_options(
