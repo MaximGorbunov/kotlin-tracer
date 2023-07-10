@@ -3,6 +3,7 @@
 #include <fstream>
 #include <list>
 #include <atomic>
+#include <sstream>
 
 #include "log.h"
 

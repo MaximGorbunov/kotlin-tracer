@@ -20,13 +20,14 @@ class TraceStorage {
     TraceTime running_time{0};
     std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> suspensions_list;
   };
+
   typedef std::shared_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> Traces;
   typedef ConcurrentMap<jlong, Traces> TraceMap;
 
   void addRawTrace(TraceTime t_time, std::shared_ptr<ASGCTCallTrace> trace,
                    pthread_t thread, int64_t coroutine_id);
   void addProcessedTrace(jlong coroutine_id, const std::shared_ptr<ProcessedTraceRecord> &record);
-  Traces getProcessedTraces(jlong coroutine_id) const;
+  [[nodiscard]] Traces getProcessedTraces(jlong coroutine_id) const;
   bool addOngoingTraceInfo(const TraceInfo &trace_info);
   void addSuspensionInfo(const std::shared_ptr<SuspensionInfo> &suspension_info);
   std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong coroutine_id);
@@ -39,7 +40,6 @@ class TraceStorage {
   void createChildCoroutineStorage(jlong coroutine_id);
   [[nodiscard]] bool containsChildCoroutineStorage(jlong coroutine_id) const;
   void createCoroutineInfo(jlong coroutine_id);
-
 
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;

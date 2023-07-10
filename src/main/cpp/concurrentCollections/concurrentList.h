@@ -33,11 +33,15 @@ class ConcurrentList {
   }
 
   T pop_front() {
-    write_lock guard(list_mutex_);
-
-    if (list_.empty()) {
+    bool empty;
+    {
+      read_lock guard(list_mutex_);
+      empty = list_.empty();
+    }
+    if (empty) {
       return nullptr;
     } else {
+      write_lock guard(list_mutex_);
       auto value = list_.front();
       list_.pop_front();
       return value;

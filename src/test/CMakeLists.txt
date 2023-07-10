@@ -1,6 +1,6 @@
-add_compile_options("-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
+add_compile_options("-fprofile-arcs;-ftest-coverage;-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
 
-add_link_options("-fsanitize=address;-fsanitize=undefined")
+add_link_options("-fprofile-arcs;-ftest-coverage;-fsanitize=address;-fsanitize=undefined")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -27,33 +27,23 @@ execute_process(COMMAND ${CMAKE_C_COMPILER} -print-file-name=${ASAN_NAME}
         OUTPUT_VARIABLE LIBASAN_PATH
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+file(GLOB_RECURSE TEST_SOURCES_CPP cpp/*.cpp)
+
 configure_file(cpp/utils/config.h.in ${CMAKE_BINARY_DIR}/generated/config.h)
 
 include_directories(${PROJECT_SOURCE_DIR}/src/main/cpp ${CMAKE_BINARY_DIR}/generated/)
 include(GoogleTest)
 
 add_executable(
-        argsParser_test
+        all_tests
         ${SOURCES_C} ${SOURCES_CPP}
-        cpp/argsParserTest.cpp
+        ${TEST_SOURCES_CPP}
 )
+
 target_link_libraries(
-        argsParser_test
+        all_tests
         agent
         GTest::gtest_main
 )
 
-add_executable(
-        instrumentation_test
-        ${SOURCES_C} ${SOURCES_CPP}
-        cpp/instrumentationTest.cpp
-)
-target_link_libraries(
-        instrumentation_test
-        agent
-        GTest::gtest_main
-)
-
-
-gtest_discover_tests(argsParser_test)
-gtest_discover_tests(instrumentation_test)
+gtest_discover_tests(all_tests)

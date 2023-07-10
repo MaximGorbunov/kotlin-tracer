@@ -48,7 +48,8 @@ unique_ptr<kotlin_tracer::InstrumentationMetadata> load(
     jni->ExceptionDescribe();
   }
   return std::make_unique<InstrumentationMetadata>(InstrumentationMetadata{
-      klassReference, transformKotlinCoroutines,
+      klassReference,
+      transformKotlinCoroutines,
       transformMethod});
 }
 }  // namespace kotlin_tracer

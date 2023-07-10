@@ -11,7 +11,6 @@
 #include "profiler/model/args.hpp"
 #include "utils/log.h"
 
-// Required to be enabled for AsyncTrace usage
 namespace kotlin_tracer {
 class Agent {
  public:

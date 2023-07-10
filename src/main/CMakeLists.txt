@@ -1,10 +1,10 @@
 add_compile_options(
         "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
-        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
+        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;-fprofile-arcs;-ftest-coverage;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
 )
 
 add_link_options(
-        "$<$<CONFIG:DEBUG>:-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
+        "$<$<CONFIG:DEBUG>:-fprofile-arcs;-ftest-coverage;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
 )
 
 string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)

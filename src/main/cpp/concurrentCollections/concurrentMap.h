@@ -30,6 +30,7 @@ class ConcurrentMap {
     return map_.at(key);
   }
 
+  [[maybe_unused]]
   V &find(const K &key) {
     read_lock guard(map_mutex_);
     auto iter = map_.find(key);
