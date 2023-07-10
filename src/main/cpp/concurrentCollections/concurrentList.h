@@ -4,6 +4,7 @@
 #include <shared_mutex>
 #include <list>
 #include <functional>
+#include <mutex>
 
 namespace kotlin_tracer {
 template<typename T>

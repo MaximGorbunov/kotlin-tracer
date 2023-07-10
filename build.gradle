@@ -19,11 +19,11 @@ test {
     }
     environment "ASAN_OPTIONS", "detect_leaks=0"
     testLogging.showStandardStreams = true
-    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.ext.method +",jarPath=build/libs/kotlin-tracer.jar"
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.ext.method +",jarPath=kotlin-tracer-java/build/libs/kotlin-tracer-java.jar"
     outputs.upToDateWhen {false}
 }
 
-test.dependsOn("jar")
+test.dependsOn("kotlin-tracer-java:jar")
 
 dependencies {
     compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.6.4")

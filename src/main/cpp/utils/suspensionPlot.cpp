@@ -1,8 +1,8 @@
 #include "suspensionPlot.hpp"
 #include <string>
 #include <fstream>
-#include <sstream>
 #include <list>
+#include <atomic>
 
 #include "log.h"
 
@@ -90,7 +90,7 @@ struct TraceCount {
 static void printTraceLevel(Level *level, std::ofstream &file, const std::string &parent) {
   if (level != nullptr) {
     for (const auto &item : level->traces) {
-      auto trace_name = "[" + std::to_string(item.id) + "]" + *item.method;
+      auto trace_name = "_[" + std::to_string(item.id) + "]_" + *item.method;
       file << "data[0].labels.push('" + trace_name + "');\n";
       file << "data[0].parents.push('" + parent + "');\n";
       file << "data[0].values.push(" + std::to_string(item.count) + ");\n";

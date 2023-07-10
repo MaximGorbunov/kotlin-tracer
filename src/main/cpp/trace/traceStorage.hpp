@@ -24,7 +24,7 @@ class TraceStorage {
   typedef ConcurrentMap<jlong, Traces> TraceMap;
 
   void addRawTrace(TraceTime t_time, std::shared_ptr<ASGCTCallTrace> trace,
-                   pthread_t thread, long long coroutine_id);
+                   pthread_t thread, int64_t coroutine_id);
   void addProcessedTrace(jlong coroutine_id, const std::shared_ptr<ProcessedTraceRecord> &record);
   Traces getProcessedTraces(jlong coroutine_id) const;
   bool addOngoingTraceInfo(const TraceInfo &trace_info);

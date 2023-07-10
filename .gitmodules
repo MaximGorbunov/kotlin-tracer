@@ -1,0 +1,3 @@
+[submodule "kotlin-tracer-java"]
+	path = kotlin-tracer-java
+	url = git@github.com:MaximGorbunov/kotlin-tracer-java.git
