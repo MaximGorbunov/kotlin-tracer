@@ -139,7 +139,7 @@ void Profiler::traceEnd(jlong coroutine_id) {
                + to_string(elapsedTime));
   logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
-    plot(output_path_ + "/trace" + to_string(++trace_counter) +".html", traceInfo, storage_);
+    plot(output_path_ + "/trace" + to_string(++trace_counter) + ".html", traceInfo, storage_);
   }
 }
 

@@ -41,10 +41,13 @@ class Profiler {
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
   std::string output_path_;
-  ASGCTCallTrace* trace_;
+  ASGCTCallTrace *trace_;
   std::atomic_long trace_coroutine_id;
 
-  Profiler(std::shared_ptr<JVM> jvm, std::chrono::nanoseconds threshold, std::string output_path, std::chrono::nanoseconds interval);
+  Profiler(std::shared_ptr<JVM> jvm,
+           std::chrono::nanoseconds threshold,
+           std::string output_path,
+           std::chrono::nanoseconds interval);
   void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
   void processTraces();
   std::shared_ptr<std::string> processMethodInfo(jmethodID methodId,

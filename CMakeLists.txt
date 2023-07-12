@@ -3,8 +3,9 @@ project(kotlin-tracer)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(SOURCES_DIR ${PROJECT_SOURCE_DIR}/src/main/cpp)
 
-link_directories($ENV{JDK_DIR}/lib/server/)
+link_directories($ENV{JAVA_HOME}/lib/server/)
 link_libraries(jvm)
 
 enable_testing()

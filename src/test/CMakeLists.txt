@@ -1,6 +1,6 @@
-add_compile_options("-fprofile-arcs;-ftest-coverage;-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
+add_compile_options("-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
 
-add_link_options("-fprofile-arcs;-ftest-coverage;-fsanitize=address;-fsanitize=undefined")
+add_link_options("-fsanitize=address;-fsanitize=undefined")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -27,23 +27,48 @@ execute_process(COMMAND ${CMAKE_C_COMPILER} -print-file-name=${ASAN_NAME}
         OUTPUT_VARIABLE LIBASAN_PATH
         OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-file(GLOB_RECURSE TEST_SOURCES_CPP cpp/*.cpp)
+file(GLOB_RECURSE MOCK_SOURCES_CPP cpp/mock/*.cpp)
+
+string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)
+include_directories($ENV{JAVA_HOME}/include/${OS}/)
+include_directories($ENV{JAVA_HOME}/include/)
 
 configure_file(cpp/utils/config.h.in ${CMAKE_BINARY_DIR}/generated/config.h)
 
 include_directories(${PROJECT_SOURCE_DIR}/src/main/cpp ${CMAKE_BINARY_DIR}/generated/)
 include(GoogleTest)
 
-add_executable(
-        all_tests
-        ${SOURCES_C} ${SOURCES_CPP}
-        ${TEST_SOURCES_CPP}
-)
+macro(add_test test)
+    string(REPLACE "/" "_" name ${test})
+    add_executable(
+            ${name}
+            cpp/${test}.cpp
+    )
+    target_link_libraries(
+            ${name}
+            agent
+            GTest::gtest_main
+    )
+    gtest_discover_tests(${name})
+endmacro()
+macro(add_mock_test test mocks sources)
+    string(REPLACE "/" "_" name ${test})
+    add_executable(
+            ${name}
+            ${sources}
+            cpp/mock/${mocks}
+            cpp/${test}.cpp
+    )
+    target_link_libraries(
+            ${name}
+            GTest::gtest_main
+            GTest::gmock_main
+    )
+    gtest_discover_tests(${name})
+endmacro()
 
-target_link_libraries(
-        all_tests
-        agent
-        GTest::gtest_main
-)
-
-gtest_discover_tests(all_tests)
+add_test(concurrentCollections/concurrentListTest)
+add_test(concurrentCollections/concurrentMapTest)
+add_test(argsParserTest)
+add_test(InstrumentationTest)
+add_mock_test(jni/jniInstrumentatorTest agentThrow.cpp ${SOURCES_DIR}/jni/jni_instrumentator.cpp)
