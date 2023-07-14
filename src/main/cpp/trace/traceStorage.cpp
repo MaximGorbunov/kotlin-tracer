@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <utility>
+#include <thread>
 
 namespace kotlin_tracer {
 using std::shared_ptr, std::make_shared, std::unique_ptr, std::list;
@@ -9,10 +10,23 @@ using std::shared_ptr, std::make_shared, std::unique_ptr, std::list;
 TraceStorage::TraceStorage(
 ) : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
     processed_map_(std::make_unique<TraceMap>()),
-    ongoing_trace_info_map_(std::make_unique<ConcurrentMap<jlong, TraceInfo>>()),
-    child_coroutines_map_(std::make_unique<ConcurrentMap<jlong,
-                                                         std::shared_ptr<ConcurrentList<jlong>>>>()),
-    coroutine_info_map_(std::make_unique<ConcurrentMap<jlong, shared_ptr<CoroutineInfo>>>()) {
+    ongoing_trace_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, TraceInfo>>()),
+    child_coroutines_map_(std::make_unique<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
+    coroutine_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, shared_ptr<CoroutineInfo>>>()),
+    active_(true) {
+  cleaner_thread_ = std::thread([this]() {
+    std::chrono::seconds sleep_time{15};
+    while (active_.test(std::memory_order_relaxed)) {
+      mark_for_clean();
+      std::this_thread::sleep_for(sleep_time);
+      clean();
+    }
+  });
+}
+
+TraceStorage::~TraceStorage() {
+  active_.clear(std::memory_order_relaxed);
+  cleaner_thread_.join();
 }
 
 void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
@@ -109,5 +123,17 @@ TraceStorage::Traces TraceStorage::getProcessedTraces(jlong coroutine_id) const 
   } else {
     return {nullptr};
   }
+}
+
+void TraceStorage::mark_for_clean() {
+  processed_map_->mark_current_values_for_clean();
+  child_coroutines_map_->mark_current_values_for_clean();
+  coroutine_info_map_->mark_current_values_for_clean();
+}
+
+void TraceStorage::clean() {
+  processed_map_->clean();
+  child_coroutines_map_->clean();
+  coroutine_info_map_->clean();
 }
 }  // namespace kotlin_tracer

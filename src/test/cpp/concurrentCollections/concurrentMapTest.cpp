@@ -7,44 +7,44 @@ namespace kotlin_tracer {
 using std::string;
 
 TEST(ConcurrentMapTest, TestInsertGet) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   int value = 1;
   map.insert("k", &value);
   EXPECT_EQ(1, *map.get("k"));
 }
 
 TEST(ConcurrentMapTest, TestContains) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   int value = 1;
   map.insert("k", &value);
   EXPECT_EQ(true, map.contains("k"));
 }
 
 TEST(ConcurrentMapTest, TestContainsNegative) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   EXPECT_EQ(false, map.contains("k"));
 }
 
 TEST(ConcurrentMapTest, TestGetNotFound) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   EXPECT_EQ(nullptr, map.get("k"));
 }
 
 TEST(ConcurrentMapTest, TestGetCreateEntry) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   EXPECT_EQ(nullptr, map.get("k"));
   EXPECT_EQ(true, map.contains("k"));
 }
 
 TEST(ConcurrentMapTest, TestAt) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   int value = 1;
   map.insert("k", &value);
   EXPECT_EQ(1, *map.at("k"));
 }
 
 TEST(ConcurrentMapTest, TestAtNotFound) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   bool error{false};
   try {
     map.at("k");
@@ -55,7 +55,7 @@ TEST(ConcurrentMapTest, TestAtNotFound) {
 }
 
 TEST(ConcurrentMapTest, TestAtNotCreatingEntry) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   try {
     map.at("k");
   } catch (...) {
@@ -64,7 +64,7 @@ TEST(ConcurrentMapTest, TestAtNotCreatingEntry) {
 }
 
 TEST(ConcurrentMapTest, TestErase) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   int value;
   map.insert("k", &value);
   EXPECT_TRUE(map.erase("k"));
@@ -73,7 +73,7 @@ TEST(ConcurrentMapTest, TestErase) {
 
 
 TEST(ConcurrentMapTest, TestEraseNegative) {
-  ConcurrentMap<string, int *> map;
+  ConcurrentCleanableMap<string, int *> map;
   int value;
   map.insert("k", &value);
   EXPECT_FALSE(map.erase("k2"));

@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <jni.h>
+#include <thread>
 
 #include "concurrentCollections/concurrentList.h"
 #include "concurrentCollections/concurrentMap.h"
@@ -14,6 +15,7 @@ namespace kotlin_tracer {
 class TraceStorage {
  public:
   TraceStorage();
+  ~TraceStorage();
 
   struct CoroutineInfo {
     TraceTime last_resume;
@@ -22,7 +24,7 @@ class TraceStorage {
   };
 
   typedef std::shared_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> Traces;
-  typedef ConcurrentMap<jlong, Traces> TraceMap;
+  typedef ConcurrentCleanableMap<jlong, Traces> TraceMap;
 
   void addRawTrace(TraceTime t_time, std::shared_ptr<ASGCTCallTrace> trace,
                    pthread_t thread, int64_t coroutine_id);
@@ -44,9 +46,14 @@ class TraceStorage {
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;
   std::unique_ptr<TraceMap> processed_map_;
-  std::unique_ptr<ConcurrentMap<jlong, TraceInfo>> ongoing_trace_info_map_;
-  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> child_coroutines_map_;
-  std::unique_ptr<ConcurrentMap<jlong, std::shared_ptr<CoroutineInfo>>> coroutine_info_map_;
+  std::unique_ptr<ConcurrentCleanableMap<jlong, TraceInfo>> ongoing_trace_info_map_;
+  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> child_coroutines_map_;
+  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<CoroutineInfo>>> coroutine_info_map_;
+  std::atomic_flag active_;
+  std::thread cleaner_thread_;
+
+  void mark_for_clean();
+  void clean();
 };
 }
 

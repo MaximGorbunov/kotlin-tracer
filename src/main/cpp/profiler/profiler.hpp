@@ -36,7 +36,7 @@ class Profiler {
   std::unique_ptr<std::thread> profiler_thread_;
   AsyncGetCallTrace async_trace_ptr_;
   TraceStorage storage_;
-  ConcurrentMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
+  ConcurrentCleanableMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
   std::atomic_flag active_;
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
