@@ -71,12 +71,31 @@ TEST(ConcurrentMapTest, TestErase) {
   EXPECT_FALSE(map.contains("k"));
 }
 
-
 TEST(ConcurrentMapTest, TestEraseNegative) {
   ConcurrentCleanableMap<string, int *> map;
   int value;
   map.insert("k", &value);
   EXPECT_FALSE(map.erase("k2"));
   EXPECT_TRUE(map.contains("k"));
+}
+
+TEST(ConcurrentMapTest, TestCleanEmptyCase) {
+  ConcurrentCleanableMap<string, int *> map;
+  map.mark_current_values_for_clean();
+  map.clean();
+  EXPECT_TRUE(map.empty());
+}
+
+TEST(ConcurrentMapTest, TestClean) {
+  ConcurrentCleanableMap<string, int *> map;
+  int value1{0};
+  int value2{1};
+  map.insert("k1", &value1);
+  map.insert("k2", &value2);
+  EXPECT_FALSE(map.empty());
+  map.mark_current_values_for_clean();
+  map.clean();
+  EXPECT_TRUE(map.empty());
+  EXPECT_TRUE(map.cleanListEmpty());
 }
 }  //kotlin_tracer

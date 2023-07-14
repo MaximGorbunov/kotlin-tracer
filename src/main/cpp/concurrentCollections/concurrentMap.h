@@ -3,38 +3,44 @@
 
 #include <shared_mutex>
 #include <unordered_map>
+#include <vector>
 
 namespace kotlin_tracer {
 template<typename K, typename V>
 class ConcurrentCleanableMap {
  private:
-  struct MarkValue {
-    std::atomic_flag clean;
-    V value;
-    MarkValue(const V &value) : value(value) {};
-  };
 
   typedef std::shared_lock<std::shared_mutex> read_lock;
   typedef std::unique_lock<std::shared_mutex> write_lock;
 
   std::shared_mutex map_mutex_;
-  std::unordered_map<K, std::unique_ptr<MarkValue>> map_;
+  std::unordered_map<K, V> map_;
+  std::vector<K> clean_list_;
+
  public:
   ConcurrentCleanableMap() : map_mutex_(), map_() {}
 
   bool insert(const K &key, const V &value) {
     write_lock guard(map_mutex_);
-    return map_.insert({key, std::make_unique<MarkValue>(value)}).second;
+    return map_.insert({key, value}).second;
   }
 
   V &get(const K &key) {
     read_lock guard(map_mutex_);
-    return map_[key]->value;
+    return map_[key];
   }
 
   V &at(const K &key) {
     read_lock guard(map_mutex_);
-    return map_.at(key)->value;
+    return map_.at(key);
+  }
+
+  bool empty() {
+    return map_.empty();
+  }
+
+  bool cleanListEmpty() {
+    return clean_list_.empty();
   }
 
   [[maybe_unused]]
@@ -42,7 +48,7 @@ class ConcurrentCleanableMap {
     read_lock guard(map_mutex_);
     auto iter = map_.find(key);
     if (iter != map_.end()) {
-      return iter->second->value;
+      return iter->second;
     } else {
       return nullptr;
     }
@@ -65,16 +71,15 @@ class ConcurrentCleanableMap {
   void mark_current_values_for_clean() {
     read_lock guard(map_mutex_);
     for (const auto &[key, value] : map_) {
-      value->clean.test_and_set(std::memory_order_relaxed);
+      clean_list_.push_back(key);
     }
   }
 
   void clean() {
     write_lock guard(map_mutex_);
-    for (const auto &[key, value]: map_) {
-      if (value->clean.test(std::memory_order_relaxed))  {
-        map_.erase(key);
-      }
+    while(!clean_list_.empty()) {
+      map_.erase(clean_list_.back());
+      clean_list_.pop_back();
     }
   }
 };
