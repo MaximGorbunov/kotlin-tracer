@@ -5,6 +5,7 @@
 # Prerequisites
 *.d
 cmake-build-debug/
+cmake-build-debug-tsan/
 cmake-build-release/
 cmake_build_Debug/
 cmake_build_Release/
@@ -175,6 +176,7 @@ $RECYCLE.BIN/
 ### Gradle ###
 .gradle
 **/build/
+kotlin-tracer-java/build/
 !src/**/build/
 
 # Ignore Gradle GUI config
