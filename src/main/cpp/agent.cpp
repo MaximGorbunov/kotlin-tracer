@@ -81,6 +81,22 @@ void JNICALL VMStart(
 }
 
 [[maybe_unused]]
+void JNICALL GarbageCollectionStart(__attribute__((unused)) jvmtiEnv *jvmti_env) {
+    read_lock lock(mutex);
+    if (agent != nullptr) {
+      agent->getProfiler()->gcStart();
+    }
+}
+
+[[maybe_unused]]
+void JNICALL GarbageCollectionFinish(__attribute__((unused)) jvmtiEnv *jvmti_env) {
+    read_lock lock(mutex);
+    if (agent != nullptr) {
+      agent->getProfiler()->gcFinish();
+    }
+}
+
+[[maybe_unused]]
 JNIEXPORT jint JNICALL Agent_OnLoad(
     JavaVM *java_vm,
     char *options,
@@ -106,6 +122,8 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
   callbacks->ClassLoad = ClassLoad;
   callbacks->ClassFileLoadHook = ClassFileLoadHook;
   callbacks->VMInit = VMInit;
+  callbacks->GarbageCollectionStart = GarbageCollectionStart;
+  callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
   agent = make_unique<kotlin_tracer::Agent>(
       std::shared_ptr<JavaVM>(java_vm,
                               [](JavaVM *vm) {}),

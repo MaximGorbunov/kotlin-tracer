@@ -5,6 +5,7 @@
 #include <list>
 #include <functional>
 #include <mutex>
+#include <atomic>
 
 namespace kotlin_tracer {
 template<typename T>
@@ -14,8 +15,9 @@ class ConcurrentList {
   typedef std::unique_lock<std::shared_mutex> write_lock;
   std::list<T> list_;
   std::shared_mutex list_mutex_;
+  std::atomic_int clean_until_;
  public:
-  ConcurrentList() : list_(), list_mutex_() {}
+  ConcurrentList() : list_(), list_mutex_(), clean_until_(0) {}
 
   void push_back(const T &value) {
     write_lock guard(list_mutex_);
@@ -48,6 +50,18 @@ class ConcurrentList {
     }
   }
 
+  void pop_back() {
+    bool empty;
+    {
+      read_lock guard(list_mutex_);
+      empty = list_.empty();
+    }
+    if (!empty) {
+      write_lock guard(list_mutex_);
+      list_.pop_back();
+    }
+  }
+
   T back() {
     read_lock guard(list_mutex_);
     return list_.back();
@@ -65,6 +79,15 @@ class ConcurrentList {
     }
   }
 
+  void forEachFiltered(const std::function<bool(T)> &filter, const std::function<void(T)> &lambda) {
+    read_lock guard(list_mutex_);
+    for (auto &element : list_) {
+      if (filter(element)) {
+        lambda(element);
+      }
+    }
+  }
+
   T find(const std::function<bool(T)> &lambda) {
     read_lock guard(list_mutex_);
     for (auto &element : list_) {
@@ -73,6 +96,19 @@ class ConcurrentList {
       }
     }
     return nullptr;
+  }
+
+  void mark_for_clean() {
+    read_lock guard(list_mutex_);
+    clean_until_.store(list_.size(), std::memory_order_relaxed);
+  }
+
+  void clean() {
+    write_lock guard(list_mutex_);
+    auto until = clean_until_.load(std::memory_order_relaxed);
+    for (int i = 0; i < until; ++i) {
+      list_.pop_front();
+    }
   }
 };
 }

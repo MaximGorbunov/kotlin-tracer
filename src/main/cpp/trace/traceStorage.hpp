@@ -23,6 +23,11 @@ class TraceStorage {
     std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> suspensions_list;
   };
 
+  struct GCEvent {
+      TraceTime start;
+      TraceTime end;
+  };
+
   typedef std::shared_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> Traces;
   typedef ConcurrentCleanableMap<jlong, Traces> TraceMap;
 
@@ -42,15 +47,18 @@ class TraceStorage {
   void createChildCoroutineStorage(jlong coroutine_id);
   [[nodiscard]] bool containsChildCoroutineStorage(jlong coroutine_id) const;
   void createCoroutineInfo(jlong coroutine_id);
-
+  void gcStart();
+  void gcFinish();
+  void findGcEvents(const TraceTime start, const TraceTime stop, const std::function<void(std::shared_ptr<GCEvent>)> &for_each) const;
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;
   std::unique_ptr<TraceMap> processed_map_;
   std::unique_ptr<ConcurrentCleanableMap<jlong, TraceInfo>> ongoing_trace_info_map_;
   std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> child_coroutines_map_;
   std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<CoroutineInfo>>> coroutine_info_map_;
+  std::unique_ptr<ConcurrentList<std::shared_ptr<GCEvent>>> gc_events_;
   std::atomic_flag active_;
-  std::thread cleaner_thread_;
+  std::unique_ptr<std::thread> cleaner_thread_;
 
   void mark_for_clean();
   void clean();

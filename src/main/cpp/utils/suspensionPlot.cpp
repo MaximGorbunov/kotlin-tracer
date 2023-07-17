@@ -128,7 +128,7 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
   printTraceLevel(root.get(), file, parent);
 }
 
-static void printSuspensions(const string &parent,
+static void print_trace_info(const string &parent,
                              jlong coroutine_id,
                              std::ofstream &file,
                              const TraceStorage &storage) {
@@ -177,11 +177,26 @@ static void printSuspensions(const string &parent,
   coroutine_info->suspensions_list->forEach(suspensionPrint);
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
     std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage](jlong childCoroutine) {
-      printSuspensions(coroutineName, childCoroutine, file, storage);
+      print_trace_info(coroutineName, childCoroutine, file, storage);
     };
     auto children = storage.getChildCoroutines(coroutine_id);
     children->forEach(childCoroutinePrint);
   }
+}
+
+static void print_gc_info(const string &parent,
+                          const TraceInfo &trace_info,
+                          std::ofstream &file,
+                          const TraceStorage &storage) {
+  int gc_event_counter = 0;
+  std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each = [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent>& gc_event) {
+    auto gc_time = gc_event->end - gc_event->start;
+    auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time));
+    file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
+    file << "data[0].parents.push('" + parent + "');\n";
+    file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+  };
+  storage.findGcEvents(trace_info.start, trace_info.end, for_each);
 }
 
 void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &storage) {
@@ -190,7 +205,9 @@ void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &s
   if (file.is_open()) {
     file << *top_half;
     auto suspensions = storage.getCoroutineInfo(trace_info.coroutine_id);
-    printSuspensions("", trace_info.coroutine_id, file, storage);
+    print_trace_info("", trace_info.coroutine_id, file, storage);
+    auto const coroutineName = string("coroutine#" + std::to_string(trace_info.coroutine_id));
+    print_gc_info(coroutineName, trace_info, file, storage);
     file << *bottom_half;
   } else {
     throw std::runtime_error("Failed to open file" + path);

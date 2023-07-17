@@ -3,9 +3,10 @@
 #include <memory>
 #include <utility>
 #include <thread>
+#include "../utils/log.h"
 
 namespace kotlin_tracer {
-using std::shared_ptr, std::make_shared, std::unique_ptr, std::list;
+using std::shared_ptr, std::make_shared, std::unique_ptr, std::make_unique, std::list;
 
 TraceStorage::TraceStorage(
 ) : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
@@ -13,8 +14,8 @@ TraceStorage::TraceStorage(
     ongoing_trace_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, TraceInfo>>()),
     child_coroutines_map_(std::make_unique<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
     coroutine_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, shared_ptr<CoroutineInfo>>>()),
-    active_(true) {
-  cleaner_thread_ = std::thread([this]() {
+    gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()) {
+  cleaner_thread_ = make_unique<std::thread>([this]() {
     std::chrono::seconds sleep_time{15};
     while (active_.test(std::memory_order_relaxed)) {
       mark_for_clean();
@@ -22,11 +23,14 @@ TraceStorage::TraceStorage(
       clean();
     }
   });
+  cleaner_thread_->detach();
 }
 
 TraceStorage::~TraceStorage() {
+  logDebug("Cleaning trace storage");
   active_.clear(std::memory_order_relaxed);
-  cleaner_thread_.join();
+  cleaner_thread_.reset();
+  logDebug("Cleaning trace storage finished");
 }
 
 void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
@@ -129,11 +133,31 @@ void TraceStorage::mark_for_clean() {
   processed_map_->mark_current_values_for_clean();
   child_coroutines_map_->mark_current_values_for_clean();
   coroutine_info_map_->mark_current_values_for_clean();
+  gc_events_->mark_for_clean();
 }
 
 void TraceStorage::clean() {
   processed_map_->clean();
   child_coroutines_map_->clean();
   coroutine_info_map_->clean();
+  gc_events_->clean();
+}
+
+void TraceStorage::gcStart() {
+  gc_events_->push_back(make_shared<GCEvent>(GCEvent{currentTimeNs(), 0}));
+}
+
+void TraceStorage::gcFinish() {
+  auto gc_event = gc_events_->back();
+  gc_events_->pop_front();
+  gc_event->end = currentTimeNs();
+  gc_events_->push_back(gc_event);
+}
+
+void TraceStorage::findGcEvents(const TraceTime start, const TraceTime stop, const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
+  std::function<bool(shared_ptr<GCEvent>)> filter = [start, stop](const shared_ptr<GCEvent>& event) {
+    return event->start >= start && event->end <= stop;
+  };
+  gc_events_->forEachFiltered(filter, for_each);
 }
 }  // namespace kotlin_tracer

@@ -30,10 +30,12 @@ class Profiler {
   void coroutineSuspended(jlong coroutine_id);
   void coroutineResumed(jlong coroutine_id);
   void coroutineCompleted(jlong coroutine_id);
+  void gcStart();
+  void gcFinish();
  private:
+  std::unique_ptr<std::thread> profiler_thread_;
   static std::shared_ptr<Profiler> instance_;
   std::shared_ptr<JVM> jvm_;
-  std::unique_ptr<std::thread> profiler_thread_;
   AsyncGetCallTrace async_trace_ptr_;
   TraceStorage storage_;
   ConcurrentCleanableMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;

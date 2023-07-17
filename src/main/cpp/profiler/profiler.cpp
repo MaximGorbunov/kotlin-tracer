@@ -53,7 +53,7 @@ Profiler::Profiler(
       storage_(),
       method_info_map_(),
       threshold_(threshold),
-      interval_(interval), output_path_(std::move(output_path)) {
+      interval_(interval), output_path_(std::move(output_path)), trace_(nullptr) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->async_trace_ptr_ = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
   struct sigaction action{};
@@ -67,7 +67,6 @@ Profiler::Profiler(
     printf("Error setting handler");
     fflush(stdout);
   }
-  active_.test_and_set(std::memory_order_relaxed);
   dlclose(libjvm_handle);
 }
 
@@ -106,12 +105,14 @@ void Profiler::startProfiler() {
     jvm_->dettachThread();
     logDebug("end profile thread");
   });
+  profiler_thread_->detach();
 }
 
 void Profiler::stop() {
   logDebug("stop profiler");
   active_.clear(std::memory_order_relaxed);
-  profiler_thread_->join();
+  profiler_thread_.reset();
+  logDebug("stop profiler finished");
 }
 
 void Profiler::traceStart() {
@@ -280,5 +281,13 @@ void Profiler::coroutineCompleted(jlong coroutine_id) {
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   coroutine_info->running_time += (currentTimeNs() - coroutine_info->last_resume);
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
+}
+
+void Profiler::gcStart() {
+  storage_.gcStart();
+}
+
+void Profiler::gcFinish() {
+  storage_.gcFinish();
 }
 }  // namespace kotlin_tracer
