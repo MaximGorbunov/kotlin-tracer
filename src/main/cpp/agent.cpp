@@ -62,6 +62,13 @@ void JNICALL VMInit(
                        "kotlin-tracer.jar",
                        agent->getJVM());
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
+  //Install coroutine debug probes
+  auto debug_probes = jni_env->FindClass("kotlinx/coroutines/debug/DebugProbes");
+  auto install_method = jni_env->GetMethodID(debug_probes, "install", "()V");
+  auto instance_field = jni_env->GetStaticFieldID(debug_probes, "INSTANCE", "Lkotlinx/coroutines/debug/DebugProbes;");
+  auto instance = jni_env->GetStaticObjectField(debug_probes, instance_field);
+  jni_env->CallVoidMethod(instance, install_method);
+
   agent->getProfiler()->startProfiler();
 }
 
