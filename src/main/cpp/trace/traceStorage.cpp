@@ -14,12 +14,15 @@ TraceStorage::TraceStorage(
     ongoing_trace_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, TraceInfo>>()),
     child_coroutines_map_(std::make_unique<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
     coroutine_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, shared_ptr<CoroutineInfo>>>()),
-    gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()) {
+    gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()),
+    active_(true) {
   cleaner_thread_ = make_unique<std::thread>([this]() {
     std::chrono::seconds sleep_time{15};
     while (active_.test(std::memory_order_relaxed)) {
+      logDebug("Marking for clean");
       mark_for_clean();
       std::this_thread::sleep_for(sleep_time);
+      logDebug("Cleaning storage");
       clean();
     }
   });

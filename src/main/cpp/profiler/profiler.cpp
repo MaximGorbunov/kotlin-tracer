@@ -10,7 +10,7 @@
 #include "../utils/log.h"
 #include "../utils/suspensionPlot.hpp"
 
-using std::shared_ptr, std::thread, std::string, std::to_string, std::make_unique, std::runtime_error,
+using std::shared_ptr, std::unique_ptr, std::thread, std::string, std::to_string, std::make_unique, std::runtime_error,
     std::make_shared, std::list, std::size;
 
 namespace kotlin_tracer {
@@ -159,7 +159,7 @@ void Profiler::processTraces() {
     auto thread = jvm_->findThread(rawRecord->thread);
     if (thread == nullptr) logInfo("Cannot get thread: " + *thread->name);
     processedRecord->thread_name = thread->name;
-    shared_ptr<list<shared_ptr<string>>> methods = make_shared<list<shared_ptr<string>>>();
+    shared_ptr<list<unique_ptr<StackFrame>>> methods = make_shared<list<unique_ptr<StackFrame>>>();
     for (int i = 0; i < rawRecord->trace_count; i++) {
       ASGCTCallFrame frame = rawRecord->trace->frames[i];
       methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
@@ -170,7 +170,7 @@ void Profiler::processTraces() {
   }
 }
 
-shared_ptr<string> Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
+unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
   if (!method_info_map_.contains(methodId)) {
     auto jvmti = jvm_->getJvmTi();
     char *pName;
@@ -198,13 +198,12 @@ shared_ptr<string> Profiler::processMethodInfo(jmethodID methodId, jint lineno) 
     if (err != JVMTI_ERROR_NONE) {
       logDebug("Error finding class name: " + to_string(err));
     }
-    string line = to_string(lineno);
     shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
     method_info_map_.insert(methodId, method);
-    return make_shared<string>(*method + ':' + line);
+    return make_unique<StackFrame>(StackFrame{ method, lineno });
   } else {
     string line = to_string(lineno);
-    return make_shared<string>(*method_info_map_.get(methodId) + ':' + line);
+    return make_unique<StackFrame>(StackFrame{ method_info_map_.get(methodId), lineno });
   }
 }
 
@@ -254,7 +253,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
   jvmtiError err = jvmti->GetStackTrace(thread, 0, size(frames), frames, &framesCount);
   if (err == JVMTI_ERROR_NONE && framesCount >= 1) {
     auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{coroutine_id, currentTimeNs(), 0,
-                                                                     make_unique<list<shared_ptr<string>>>()});
+                                                                     make_unique<list<std::unique_ptr<StackFrame>>>()});
     for (int i = 0; i < framesCount; ++i) {
       suspensionInfo->suspension_stack_trace->push_back(
           processMethodInfo(frames[i].method, (jint) frames[i].location));

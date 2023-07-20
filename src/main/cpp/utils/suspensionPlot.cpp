@@ -63,7 +63,7 @@ static inline std::unique_ptr<std::string> printSuspension(
   auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(suspension->end - suspension->start));
   for (auto &frame : *suspension->suspension_stack_trace) {
-    stack_trace_stream << *frame << "<br>";
+    stack_trace_stream << *frame->frame + std::to_string(frame->line_number) << "<br>";
   }
   auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
   file << "data[0].labels.push('" + *stack_trace + "');\n";
@@ -83,7 +83,7 @@ struct Level {
 
 struct TraceCount {
   int id;
-  std::shared_ptr<std::string> method;
+  std::unique_ptr<std::string> method;
   int64_t count;
   unique_ptr<Level> next;
 };
@@ -109,9 +109,10 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
     Level *current_level = root.get();
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
+      auto method = std::make_unique<string>(*(*frame)->frame + std::to_string((*frame)->line_number));
       bool found = false;
       for (auto &trace_count : current_level->traces) {
-        if (*trace_count.method == **frame) {
+        if (*trace_count.method == *method) {
           found = true;
           ++trace_count.count;
           current_level = trace_count.next.get();
@@ -119,7 +120,7 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
       }
       if (!found) {
         auto next_level = std::make_unique<Level>(Level{});
-        current_level->traces.push_back(TraceCount{++counter, *frame, 1L, std::move(next_level)});
+        current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
         current_level = current_level->traces.back().next.get();
       }
     }
