@@ -155,12 +155,12 @@ void Profiler::traceStart() {
 }
 
 void Profiler::traceEnd(jlong coroutine_id) {
-  if (coroutine_id == -2) {
+  coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
+  if (coroutine_id == -1) {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
     calculate_resource_usage(coroutine_info);
   }
-  coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
   auto finish = currentTimeNs();
   auto traceInfo = findOngoingTrace(coroutine_id);
   traceInfo.end = finish;
