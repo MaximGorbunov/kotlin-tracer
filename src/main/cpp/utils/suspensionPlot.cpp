@@ -135,16 +135,37 @@ static void print_trace_info(const string &parent,
                              const TraceStorage &storage) {
   auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
   auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
-  auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds(coroutine_info->running_time));
+  auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::nanoseconds(coroutine_info->wall_clock_running_time));
+  auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::microseconds (coroutine_info->cpu_user_clock_running_time_us));
+  auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::microseconds (coroutine_info->cpu_system_clock_running_time_us));
 
   file << "data[0].labels.push('" + coroutineName + "');\n";
   file << "data[0].parents.push('" + parent + "');\n";
   file << "data[0].values.push(0);\n";
 
-  file << "data[0].labels.push('running#" + std::to_string(coroutine_id) + "');\n";
+  auto running_span_name = "'running#" + std::to_string(coroutine_id) + "'";
+  file << "data[0].labels.push(" + running_span_name + ");\n";
   file << "data[0].parents.push('" + coroutineName + "');\n";
-  file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_wall_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('running_cpu_user#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_cpu_user_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('running_cpu_system#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_cpu_system_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('voluntary_switches#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(coroutine_info->voluntary_switches) + ");\n";
+
+  file << "data[0].labels.push('involuntary_switches#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(coroutine_info->involuntary_switches) + ");\n";
 
   auto traces = storage.getProcessedTraces(coroutine_id);
   if (traces != nullptr) {

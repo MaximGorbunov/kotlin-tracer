@@ -4,6 +4,7 @@
 #include <cstring>
 #include <list>
 #include <string>
+#include <sys/resource.h>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -115,8 +116,32 @@ void Profiler::stop() {
   logDebug("stop profiler finished");
 }
 
+static inline TraceTime calculate_elapsed_time(const timeval &end, const timeval &begin) {
+  std::chrono::seconds seconds(end.tv_sec - begin.tv_sec);
+  std::chrono::microseconds microseconds(end.tv_usec - begin.tv_usec);
+  return std::chrono::duration_cast<std::chrono::microseconds>(seconds).count() + microseconds.count();
+}
+
+static inline void calculate_resource_usage(const shared_ptr<TraceStorage::CoroutineInfo> &coroutine_info) {
+  coroutine_info->wall_clock_running_time += (currentTimeNs() - coroutine_info->last_resume);
+  auto last_system_time = coroutine_info->last_rusage.ru_stime;
+  auto last_user_time = coroutine_info->last_rusage.ru_utime;
+  auto last_voluntary_context_switch = coroutine_info->last_rusage.ru_nvcsw;
+  auto last_involuntary_context_switch = coroutine_info->last_rusage.ru_nivcsw;
+  getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
+  coroutine_info->cpu_system_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
+  coroutine_info->cpu_user_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
+  coroutine_info->voluntary_switches += coroutine_info->last_rusage.ru_nvcsw - last_voluntary_context_switch;
+  coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
+}
+
+
 void Profiler::traceStart() {
   auto coroutine_id = current_coroutine_id;
+  if (coroutine_id == -1) { // non suspension function case
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+    storage_.createCoroutineInfo(coroutine_id);
+  }
   auto charBuffer = make_unique<char[]>(100);
   pthread_getname_np(pthread_self(), charBuffer.get(), 100);
   auto start = currentTimeNs();
@@ -125,11 +150,16 @@ void Profiler::traceStart() {
   if (storage_.addOngoingTraceInfo(trace_info)) {
     logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
   } else {
-    throw runtime_error("Found trace that already started");
+    throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
 }
 
 void Profiler::traceEnd(jlong coroutine_id) {
+  if (coroutine_id == -2) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+    auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+    calculate_resource_usage(coroutine_info);
+  }
   coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
   auto finish = currentTimeNs();
   auto traceInfo = findOngoingTrace(coroutine_id);
@@ -242,7 +272,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
 
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   if (coroutine_info->last_resume > 0) {
-    coroutine_info->running_time += (currentTimeNs() - coroutine_info->last_resume);
+    calculate_resource_usage(coroutine_info);
     coroutine_info->last_resume = 0;  // To not count multiple times chain
   }
   ::jthread thread;
@@ -278,7 +308,7 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
-  coroutine_info->running_time += (currentTimeNs() - coroutine_info->last_resume);
+  calculate_resource_usage(coroutine_info);
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
 

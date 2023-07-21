@@ -3,6 +3,8 @@
 #include <memory>
 #include <utility>
 #include <thread>
+#include <sys/resource.h>
+
 #include "../utils/log.h"
 
 namespace kotlin_tracer {
@@ -79,13 +81,21 @@ void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspensio
 }
 
 void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
+  auto coroutine_info = std::make_shared<CoroutineInfo>(CoroutineInfo{
+      currentTimeNs(),
+      0,
+      0,
+      0,
+      0,
+      0,
+      rusage{},
+      std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
+  });
+  getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
   coroutine_info_map_->insert(
       coroutine_id,
-      std::make_shared<CoroutineInfo>(CoroutineInfo{
-          0,
-          0,
-          std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
-      }));
+      coroutine_info
+);
 }
 
 shared_ptr<TraceStorage::CoroutineInfo> TraceStorage::getCoroutineInfo(jlong coroutine_id) const {

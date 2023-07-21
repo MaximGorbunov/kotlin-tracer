@@ -6,6 +6,7 @@
 #include <string>
 #include <jni.h>
 #include <thread>
+#include <sys/resource.h>
 
 #include "concurrentCollections/concurrentList.h"
 #include "concurrentCollections/concurrentMap.h"
@@ -19,7 +20,12 @@ class TraceStorage {
 
   struct CoroutineInfo {
     TraceTime last_resume;
-    TraceTime running_time{0};
+    TraceTime wall_clock_running_time{0};
+    TraceTime cpu_user_clock_running_time_us{0};
+    TraceTime cpu_system_clock_running_time_us{0};
+    uint64_t voluntary_switches{0};
+    uint64_t  involuntary_switches{0};
+    rusage last_rusage;
     std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> suspensions_list;
   };
 

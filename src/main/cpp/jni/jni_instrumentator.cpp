@@ -1,3 +1,5 @@
+#include <thread>
+
 #include "jni_instrumentator.h"
 #include "agent.hpp"
 namespace kotlin_tracer {
@@ -8,6 +10,9 @@ Java_io_inst_CoroutineInstrumentator_coroutineCreated(
     __attribute__((unused)) JNIEnv *env,
     __attribute__((unused)) jclass clazz,
     jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   coroutineCreated(coroutine_id);
 }
 
@@ -16,6 +21,9 @@ Java_io_inst_CoroutineInstrumentator_coroutineResumed(
     __attribute__((unused)) JNIEnv *env,
     __attribute__((unused)) jclass clazz,
     jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   coroutineResumed(coroutine_id);
 }
 
@@ -24,6 +32,9 @@ Java_io_inst_CoroutineInstrumentator_coroutineCompleted(
     __attribute__((unused)) JNIEnv *env,
     __attribute__((unused)) jclass clazz,
     jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   coroutineCompleted(coroutine_id);
 }
 
@@ -32,6 +43,9 @@ Java_io_inst_CoroutineInstrumentator_coroutineSuspend(
     __attribute__((unused)) JNIEnv *env,
     __attribute__((unused)) jclass clazz,
     jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   coroutineSuspended(coroutine_id);
 }
 
