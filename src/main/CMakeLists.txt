@@ -18,6 +18,6 @@ file(GLOB_RECURSE SOURCES_CPP cpp/*.cpp)
 
 set(NAME "agent")
 
-add_library(${NAME} SHARED ${SOURCES_CPP})
+add_library(${NAME} SHARED ${SOURCES_CPP} cpp/vm/vmStructs.h)
 
 set_property(GLOBAL PROPERTY AGENT_PATH "${CMAKE_CURRENT_BINARY_DIR}/lib${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")

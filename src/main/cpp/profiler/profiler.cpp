@@ -46,7 +46,7 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
   trace_->env_id = jvm_->getJNIEnv();
   async_trace_ptr_(trace_, 30, ucontext);
   logDebug("ticks: " + to_string(trace_->num_frames));
-  if (trace_->num_frames <= 0) {
+  if (trace_->num_frames > -1000) {
     logDebug("NATIVE FRAME HERE");
     unw_context_t context;
     unw_cursor_t cursor;
@@ -57,20 +57,21 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
     }
     unw_word_t ip, offset;
     char buf[256];
-    while(unw_step(&cursor) > 0) {
+    do {
       unw_get_reg(&cursor, UNW_REG_IP, &ip);
       Dl_info info{};
       if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
 //        abi::__cxa_demangle(buf,
-        if (dladdr(reinterpret_cast<void*>(ip), &info)) {
+        if (dladdr(reinterpret_cast<void *>(ip), &info)) {
           logDebug(string(info.dli_fname) + ":" + string(buf));
         } else {
           logDebug(string(buf));
         }
       } else {
         logDebug("Symbol not found through dladdr");
+        jvm_->getCodeCache(ip);
       };
-    };
+    } while (unw_step(&cursor) > 0);
   }
   int64_t coroutine_id = current_coroutine_id;
   if (current_coroutine_id == -1) {
@@ -124,7 +125,7 @@ void Profiler::startProfiler() {
         getInstance()->storage_.addRawTrace(
             currentTimeMs(),
             trace,
-            pthread_self(),
+            thread->id,
             trace_coroutine_id.load(std::memory_order_relaxed));
       }
     };
@@ -165,12 +166,13 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   auto last_voluntary_context_switch = coroutine_info->last_rusage.ru_nvcsw;
   auto last_involuntary_context_switch = coroutine_info->last_rusage.ru_nivcsw;
   getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
-  coroutine_info->cpu_system_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
-  coroutine_info->cpu_user_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
+  coroutine_info->cpu_system_clock_running_time_us +=
+      calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
+  coroutine_info->cpu_user_clock_running_time_us +=
+      calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
   coroutine_info->voluntary_switches += coroutine_info->last_rusage.ru_nvcsw - last_voluntary_context_switch;
   coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
 }
-
 
 void Profiler::traceStart() {
   auto coroutine_id = current_coroutine_id;
@@ -225,11 +227,14 @@ void Profiler::processTraces() {
     auto thread = jvm_->findThread(rawRecord->thread);
     if (thread == nullptr) logInfo("Cannot get thread: " + *thread->name);
     processedRecord->thread_name = thread->name;
+    logDebug("====Thread==== " + *thread->name + ":");
+    processedRecord->time = rawRecord->time;
     shared_ptr<list<unique_ptr<StackFrame>>> methods = make_shared<list<unique_ptr<StackFrame>>>();
     for (int i = 0; i < rawRecord->trace_count; i++) {
       ASGCTCallFrame frame = rawRecord->trace->frames[i];
       methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
     }
+    logDebug("====End");
     processedRecord->stack_trace = std::move(methods);
     storage_.addProcessedTrace(rawRecord->coroutine_id, processedRecord);
     rawRecord = storage_.removeRawTraceHeader();
@@ -266,10 +271,11 @@ unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint line
     }
     shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
     method_info_map_.insert(methodId, method);
-    return make_unique<StackFrame>(StackFrame{ method, lineno });
+    return make_unique<StackFrame>(StackFrame{method, lineno});
   } else {
     string line = to_string(lineno);
-    return make_unique<StackFrame>(StackFrame{ method_info_map_.get(methodId), lineno });
+    logDebug(*method_info_map_.get(methodId));
+    return make_unique<StackFrame>(StackFrame{method_info_map_.get(methodId), lineno});
   }
 }
 

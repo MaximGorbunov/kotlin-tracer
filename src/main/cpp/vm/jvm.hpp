@@ -9,6 +9,7 @@
 #include <pthread.h>
 
 #include "concurrentCollections/concurrentList.h"
+#include "vmStructs.h"
 
 namespace kotlin_tracer {
 
@@ -35,11 +36,16 @@ class JVM {
   void dettachThread();
   static void initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env);
   static void loadMethodsId(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jclass klass);
+  void getCodeCache(uint64_t pointer);
 
  private:
   std::shared_ptr<JavaVM> java_vm_;
   jvmtiEnv *jvmti_env_;
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;
+  std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Field>>>> vm_structs_;
+  std::unordered_map<std::string, VMTypeEntry> types_;
+  void resolveVMStructs();
+  void resolveVMTypes();
 };
 }
 #endif //KOTLIN_TRACER_JVM_H

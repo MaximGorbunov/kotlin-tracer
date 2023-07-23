@@ -4,9 +4,10 @@
 
 #include "jvm.hpp"
 #include "../utils/log.h"
+#include "vmStructs.h"
 
 namespace kotlin_tracer {
-
+using std::shared_ptr, std::string, std::unordered_map;
 JVM::JVM(
     std::shared_ptr<JavaVM> java_vm,
     jvmtiEventCallbacks *callbacks
@@ -37,6 +38,8 @@ JVM::JVM(
                                        nullptr);
   jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_FILE_LOAD_HOOK,
                                        nullptr);
+  resolveVMStructs();
+  resolveVMTypes();
 }
 
 void JVM::addCurrentThread(::jthread thread) {
@@ -45,6 +48,7 @@ void JVM::addCurrentThread(::jthread thread) {
   pthread_t currentThread = pthread_self();
   jvmtiThreadInfo info{};
   auto err = jvmti_env_->GetThreadInfo(thread, &info);
+  logDebug("Added thread: " + std::string(info.name));
   if (err != JVMTI_ERROR_NONE) {
     logError("Failed to get thead info:" + std::to_string(err));
     return;
@@ -106,6 +110,107 @@ void JVM::loadMethodsId(jvmtiEnv *jvmti_env, __attribute__((unused)) JNIEnv *jni
   jmethodID *methods = nullptr;
   if (jvmti_env->GetClassMethods(klass, &method_count, &methods) == 0) {
     jvmti_env->Deallocate((unsigned char *) methods);
+  }
+}
+
+void JVM::resolveVMStructs() {
+  char *entry = gHotSpotVMStructs;
+  for (;; entry += gHotSpotVMStructEntryArrayStride) {
+    shared_ptr<Field> field(new Field());
+    field->fieldName = *(char **) (entry + gHotSpotVMStructEntryFieldNameOffset);
+    char *typeName = *(char **) (entry + gHotSpotVMStructEntryTypeNameOffset);
+    if (typeName == nullptr || field->fieldName == nullptr) break;
+    string typeNameStr = string(typeName);
+    int32_t isStatic = *(int32_t *) (entry + gHotSpotVMStructEntryIsStaticOffset);
+    uint64_t offset = *(uint64_t *) (entry + gHotSpotVMStructEntryOffsetOffset);
+    uint64_t address = *(uint64_t *) (entry + gHotSpotVMStructEntryAddressOffset);
+    field->typeString = *(char **) (entry + gHotSpotVMStructEntryTypeStringOffset);
+    field->isStatic = isStatic;
+    if (isStatic) {
+      field->offset = address;
+    } else {
+      field->offset = offset;
+    }
+    auto search = JVM::vm_structs_.find(typeNameStr);
+    shared_ptr<unordered_map<string, shared_ptr<Field>>> fields;
+    if (search == JVM::vm_structs_.end()) {
+      fields = std::make_shared<unordered_map<string, shared_ptr<Field>>>();
+      JVM::vm_structs_[typeNameStr] = fields;
+    } else {
+      fields = search->second;
+    }
+    fields->insert({string(field->fieldName), field});
+  }
+}
+
+void JVM::resolveVMTypes() {
+  char *entry = gHotSpotVMTypes;
+  for (;; entry += gHotSpotVMTypeEntryArrayStride) {
+    VMTypeEntry vmTypeEntry;
+    vmTypeEntry.typeName = *(char **) (entry + gHotSpotVMTypeEntryTypeNameOffset);
+    if (vmTypeEntry.typeName == nullptr) break;
+    vmTypeEntry.superclassName = *(char **) (entry + gHotSpotVMTypeEntrySuperclassNameOffset);
+    vmTypeEntry.isOopType = *(int32_t *) (entry + gHotSpotVMTypeEntryIsOopTypeOffset);
+    vmTypeEntry.isIntegerType = *(int32_t *) (entry + gHotSpotVMTypeEntryIsIntegerTypeOffset);
+    vmTypeEntry.isUnsigned = *(int32_t *) (entry + gHotSpotVMTypeEntryIsUnsignedOffset);
+    vmTypeEntry.size = *(int64_t *) (entry + gHotSpotVMTypeEntrySizeOffset);
+    vmTypeEntry.fields = vm_structs_[vmTypeEntry.typeName];
+    types_[vmTypeEntry.typeName] = vmTypeEntry;
+  }
+}
+
+typedef u_char*       address;
+void JVM::getCodeCache(uint64_t pointer) {
+  auto growableArrayBaseType = types_.at("GrowableArrayBase");
+  auto codeBlobType = types_.at("CodeBlob");
+  auto codeBlobNameField = codeBlobType.fields->at("_name");
+  auto growableArrayType = types_.at("GrowableArray<int>");
+  auto codeHeapType = types_.at("CodeHeap");
+  auto memoryField = codeHeapType.fields->at("_memory");
+  auto segmapField = codeHeapType.fields->at("_segmap");
+  auto log2SegmentSizeField = codeHeapType.fields->at("_log2_segment_size");
+  auto virtualSpaceType = types_.at("VirtualSpace");
+  auto lowField = virtualSpaceType.fields->at("_low");
+  auto highField = virtualSpaceType.fields->at("_high");
+  auto heaps = *reinterpret_cast<uint64_t *>(types_.at("CodeCache").fields->at("_heaps")->offset);
+  auto data = *reinterpret_cast<uint64_t **>(heaps + growableArrayType.fields->at("_data")->offset);
+  auto len = *reinterpret_cast<int *>(heaps + growableArrayBaseType.fields->at("_len")->offset);
+  logDebug("Code cache size: " + std::to_string(len));
+  if (len > 0) {
+    for (int i = 0; i < len; ++i) {
+      auto heap_ptr = data[i];
+      auto memory_ptr = heap_ptr + memoryField->offset;
+      auto segmap_ptr = heap_ptr + segmapField->offset;
+      auto _log2_segment_size = *reinterpret_cast<int*>(heap_ptr + log2SegmentSizeField->offset);
+      auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
+      auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
+      logDebug("Lo: " + std::to_string(low));
+      logDebug("Hi: " + std::to_string(high));
+      logDebug("Ptr: " + std::to_string(pointer));
+      if (low <= pointer && pointer < high) {
+        auto seg_map = *reinterpret_cast<address*>(segmap_ptr + lowField->offset);
+        size_t  seg_idx = (pointer - low) >> _log2_segment_size;
+
+        // This may happen in special cases. Just ignore.
+        // Example: PPC ICache stub generation.
+//        if (is_segment_unused(seg_map[seg_idx])) {
+//          return NULL;
+//        }
+
+        // Iterate the segment map chain to find the start of the block.
+        while (seg_map[seg_idx] > 0) {
+          // Don't check each segment index to refer to a used segment.
+          // This method is called extremely often. Therefore, any checking
+          // has a significant impact on performance. Rely on CodeHeap::verify()
+          // to do the job on request.
+          seg_idx -= (int)seg_map[seg_idx];
+        }
+        auto heapBlockAddr = (uint64_t)(low + (seg_idx << _log2_segment_size));
+        heapBlockAddr += types_.at("HeapBlock").size;
+        auto codeBlobName = *(char**)(heapBlockAddr + codeBlobNameField->offset);
+        logDebug("Found! ptr: " + string(codeBlobName));
+      }
+    }
   }
 }
 }  // namespace kotlin_tracer
