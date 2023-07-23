@@ -63,7 +63,7 @@ static inline std::unique_ptr<std::string> printSuspension(
   auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(suspension->end - suspension->start));
   for (auto &frame : *suspension->suspension_stack_trace) {
-    stack_trace_stream << *frame << "<br>";
+    stack_trace_stream << *frame->frame + std::to_string(frame->line_number) << "<br>";
   }
   auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
   file << "data[0].labels.push('" + *stack_trace + "');\n";
@@ -83,7 +83,7 @@ struct Level {
 
 struct TraceCount {
   int id;
-  std::shared_ptr<std::string> method;
+  std::unique_ptr<std::string> method;
   int64_t count;
   unique_ptr<Level> next;
 };
@@ -109,9 +109,10 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
     Level *current_level = root.get();
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
+      auto method = std::make_unique<string>(*(*frame)->frame + std::to_string((*frame)->line_number));
       bool found = false;
       for (auto &trace_count : current_level->traces) {
-        if (*trace_count.method == **frame) {
+        if (*trace_count.method == *method) {
           found = true;
           ++trace_count.count;
           current_level = trace_count.next.get();
@@ -119,7 +120,7 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
       }
       if (!found) {
         auto next_level = std::make_unique<Level>(Level{});
-        current_level->traces.push_back(TraceCount{++counter, *frame, 1L, std::move(next_level)});
+        current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
         current_level = current_level->traces.back().next.get();
       }
     }
@@ -128,22 +129,43 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
   printTraceLevel(root.get(), file, parent);
 }
 
-static void printSuspensions(const string &parent,
+static void print_trace_info(const string &parent,
                              jlong coroutine_id,
                              std::ofstream &file,
                              const TraceStorage &storage) {
   auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
   auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
-  auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds(coroutine_info->running_time));
+  auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::nanoseconds(coroutine_info->wall_clock_running_time));
+  auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::microseconds (coroutine_info->cpu_user_clock_running_time_us));
+  auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::microseconds (coroutine_info->cpu_system_clock_running_time_us));
 
   file << "data[0].labels.push('" + coroutineName + "');\n";
   file << "data[0].parents.push('" + parent + "');\n";
   file << "data[0].values.push(0);\n";
 
-  file << "data[0].labels.push('running#" + std::to_string(coroutine_id) + "');\n";
+  auto running_span_name = "'running#" + std::to_string(coroutine_id) + "'";
+  file << "data[0].labels.push(" + running_span_name + ");\n";
   file << "data[0].parents.push('" + coroutineName + "');\n";
-  file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_wall_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('running_cpu_user#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_cpu_user_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('running_cpu_system#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(running_cpu_system_clock_time.count()) + ");\n";
+
+  file << "data[0].labels.push('voluntary_switches#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(coroutine_info->voluntary_switches) + ");\n";
+
+  file << "data[0].labels.push('involuntary_switches#" + std::to_string(coroutine_id) + "');\n";
+  file << "data[0].parents.push(" + running_span_name + ");\n";
+  file << "data[0].values.push(" + std::to_string(coroutine_info->involuntary_switches) + ");\n";
 
   auto traces = storage.getProcessedTraces(coroutine_id);
   if (traces != nullptr) {
@@ -177,11 +199,26 @@ static void printSuspensions(const string &parent,
   coroutine_info->suspensions_list->forEach(suspensionPrint);
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
     std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage](jlong childCoroutine) {
-      printSuspensions(coroutineName, childCoroutine, file, storage);
+      print_trace_info(coroutineName, childCoroutine, file, storage);
     };
     auto children = storage.getChildCoroutines(coroutine_id);
     children->forEach(childCoroutinePrint);
   }
+}
+
+static void print_gc_info(const string &parent,
+                          const TraceInfo &trace_info,
+                          std::ofstream &file,
+                          const TraceStorage &storage) {
+  int gc_event_counter = 0;
+  std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each = [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent>& gc_event) {
+    auto gc_time = gc_event->end - gc_event->start;
+    auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time));
+    file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
+    file << "data[0].parents.push('" + parent + "');\n";
+    file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+  };
+  storage.findGcEvents(trace_info.start, trace_info.end, for_each);
 }
 
 void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &storage) {
@@ -190,7 +227,9 @@ void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &s
   if (file.is_open()) {
     file << *top_half;
     auto suspensions = storage.getCoroutineInfo(trace_info.coroutine_id);
-    printSuspensions("", trace_info.coroutine_id, file, storage);
+    print_trace_info("", trace_info.coroutine_id, file, storage);
+    auto const coroutineName = string("coroutine#" + std::to_string(trace_info.coroutine_id));
+    print_gc_info(coroutineName, trace_info, file, storage);
     file << *bottom_half;
   } else {
     throw std::runtime_error("Failed to open file" + path);
