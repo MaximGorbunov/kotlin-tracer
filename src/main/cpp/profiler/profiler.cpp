@@ -5,6 +5,9 @@
 #include <list>
 #include <string>
 #include <sys/resource.h>
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+#include <cxxabi.h>
 
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
@@ -40,8 +43,40 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
                              void *ucontext) {
   if (!active_.test(std::memory_order_relaxed)) return;
   trace_coroutine_id.load(std::memory_order_acquire);
+  trace_->env_id = jvm_->getJNIEnv();
   async_trace_ptr_(trace_, 30, ucontext);
-  trace_coroutine_id.store(current_coroutine_id, std::memory_order_release);
+  logDebug("ticks: " + to_string(trace_->num_frames));
+  if (trace_->num_frames <= 0) {
+    logDebug("NATIVE FRAME HERE");
+    unw_context_t context;
+    unw_cursor_t cursor;
+    unw_getcontext(&context);
+    unw_init_local(&cursor, &context);
+    while (unw_step(&cursor) > 0 && unw_is_signal_frame(&cursor)) {
+      //skip current signal frames
+    }
+    unw_word_t ip, offset;
+    char buf[256];
+    while(unw_step(&cursor) > 0) {
+      unw_get_reg(&cursor, UNW_REG_IP, &ip);
+      Dl_info info{};
+      if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
+//        abi::__cxa_demangle(buf,
+        if (dladdr(reinterpret_cast<void*>(ip), &info)) {
+          logDebug(string(info.dli_fname) + ":" + string(buf));
+        } else {
+          logDebug(string(buf));
+        }
+      } else {
+        logDebug("Symbol not found through dladdr");
+      };
+    };
+  }
+  int64_t coroutine_id = current_coroutine_id;
+  if (current_coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
+  trace_coroutine_id.store(coroutine_id, std::memory_order_release);
   trace_coroutine_id.notify_one();
 }
 
@@ -72,6 +107,7 @@ Profiler::Profiler(
 }
 
 void Profiler::startProfiler() {
+  active_.test_and_set(std::memory_order_relaxed);
   profiler_thread_ = std::make_unique<thread>([this] {
     logDebug("[Kotlin-tracer] Profiler thread started");
     jvm_->attachThread();
@@ -84,7 +120,7 @@ void Profiler::startProfiler() {
       trace_coroutine_id.store(0, std::memory_order_release);
       pthread_kill(thread->id, SIGVTALRM);
       trace_coroutine_id.wait(0, std::memory_order_acquire);
-      if (trace->num_frames > 0) {
+      if (trace->num_frames > 0) { // Inside JAVA
         getInstance()->storage_.addRawTrace(
             currentTimeMs(),
             trace,

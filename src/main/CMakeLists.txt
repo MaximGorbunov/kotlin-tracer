@@ -3,6 +3,7 @@ add_compile_options(
         "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
 )
 
+link_libraries("unwind")
 add_link_options(
         "$<$<CONFIG:DEBUG>:-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
 )
