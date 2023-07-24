@@ -6,7 +6,10 @@
 #include <string>
 #include <sys/resource.h>
 #define UNW_LOCAL_ONLY
-#include <libunwind.h>
+#if defined(__x86_64__) || defined(_M_X64)
+#include <libunwind-x86_64.h>
+#endif
+
 #include <cxxabi.h>
 
 #include "profiler.hpp"
@@ -55,10 +58,11 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
     while (unw_step(&cursor) > 0 && unw_is_signal_frame(&cursor)) {
       //skip current signal frames
     }
-    unw_word_t ip, offset;
+    unw_word_t ip, rbp, offset;
     char buf[256];
     do {
       unw_get_reg(&cursor, UNW_REG_IP, &ip);
+      unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
       Dl_info info{};
       if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
 //        abi::__cxa_demangle(buf,
@@ -69,7 +73,7 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
         }
       } else {
         logDebug("Symbol not found through dladdr");
-        jvm_->getCodeCache(ip);
+        jvm_->getCodeCache(ip, rbp);
       };
     } while (unw_step(&cursor) > 0);
   }
@@ -186,7 +190,7 @@ void Profiler::traceStart() {
   TraceInfo trace_info{coroutine_id, start, 0};
   storage_.createChildCoroutineStorage(coroutine_id);
   if (storage_.addOngoingTraceInfo(trace_info)) {
-    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
+//    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
   } else {
     throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
@@ -204,9 +208,9 @@ void Profiler::traceEnd(jlong coroutine_id) {
   traceInfo.end = finish;
   removeOngoingTrace(traceInfo.coroutine_id);
   auto elapsedTime = traceInfo.end - traceInfo.start;
-  logDebug("trace end: " + to_string(finish) + ":" + to_string(coroutine_id) + " time: "
-               + to_string(elapsedTime));
-  logDebug("threshold: " + to_string(threshold_.count()));
+//  logDebug("trace end: " + to_string(finish) + ":" + to_string(coroutine_id) + " time: "
+//               + to_string(elapsedTime));
+//  logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
     plot(output_path_ + "/trace" + to_string(++trace_counter) + ".html", traceInfo, storage_);
   }

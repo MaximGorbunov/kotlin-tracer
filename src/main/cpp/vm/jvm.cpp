@@ -160,7 +160,14 @@ void JVM::resolveVMTypes() {
 }
 
 typedef u_char*       address;
-void JVM::getCodeCache(uint64_t pointer) {
+typedef unsigned short u2;
+void JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
+  auto compiledMethodType = types_.at("CompiledMethod");
+  auto compiledMethodFiled = compiledMethodType.fields->at("_method");
+  auto methodType = types_.at("Method");
+  auto constMethodField = methodType.fields->at("_constMethod");
+  auto constMethodType = types_.at("ConstMethod");
+  auto methodIdField = constMethodType.fields->at("_method_idnum");
   auto growableArrayBaseType = types_.at("GrowableArrayBase");
   auto codeBlobType = types_.at("CodeBlob");
   auto codeBlobNameField = codeBlobType.fields->at("_name");
@@ -175,7 +182,6 @@ void JVM::getCodeCache(uint64_t pointer) {
   auto heaps = *reinterpret_cast<uint64_t *>(types_.at("CodeCache").fields->at("_heaps")->offset);
   auto data = *reinterpret_cast<uint64_t **>(heaps + growableArrayType.fields->at("_data")->offset);
   auto len = *reinterpret_cast<int *>(heaps + growableArrayBaseType.fields->at("_len")->offset);
-  logDebug("Code cache size: " + std::to_string(len));
   if (len > 0) {
     for (int i = 0; i < len; ++i) {
       auto heap_ptr = data[i];
@@ -184,9 +190,6 @@ void JVM::getCodeCache(uint64_t pointer) {
       auto _log2_segment_size = *reinterpret_cast<int*>(heap_ptr + log2SegmentSizeField->offset);
       auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
       auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
-      logDebug("Lo: " + std::to_string(low));
-      logDebug("Hi: " + std::to_string(high));
-      logDebug("Ptr: " + std::to_string(pointer));
       if (low <= pointer && pointer < high) {
         auto seg_map = *reinterpret_cast<address*>(segmap_ptr + lowField->offset);
         size_t  seg_idx = (pointer - low) >> _log2_segment_size;
@@ -208,7 +211,25 @@ void JVM::getCodeCache(uint64_t pointer) {
         auto heapBlockAddr = (uint64_t)(low + (seg_idx << _log2_segment_size));
         heapBlockAddr += types_.at("HeapBlock").size;
         auto codeBlobName = *(char**)(heapBlockAddr + codeBlobNameField->offset);
-        logDebug("Found! ptr: " + string(codeBlobName));
+        const auto &codeBlobNameStr = string(codeBlobName);
+        logDebug("Code blob:" + codeBlobNameStr);
+        if (codeBlobNameStr == "Interpreter") {
+          auto *fp_ptr = (intptr_t *) fp;
+          intptr_t method_ptr = fp_ptr[-3];
+          char *pName;
+          char *pSignature;
+          char *pGeneric;
+          jvmti_env_->GetMethodName((jmethodID)(&method_ptr), &pName, &pSignature, &pGeneric);
+          logDebug("Method name: " + string(pName));
+        } else if (codeBlobNameStr.contains("nmethod")) {
+          auto method_ptr = *reinterpret_cast<uint64_t *>(heapBlockAddr + compiledMethodFiled->offset);
+          char *pName;
+          char *pSignature;
+          char *pGeneric;
+          jvmti_env_->GetMethodName((jmethodID)(&method_ptr), &pName, &pSignature, &pGeneric);
+          logDebug("NMethod name: " + string(pName));
+        }
+
       }
     }
   }
