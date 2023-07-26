@@ -15,6 +15,18 @@ typedef struct {
   ASGCTCallFrame *frames; // frames
 } ASGCTCallTrace;
 
+typedef struct InstructionInfo {
+  intptr_t instruction;
+  uint64_t frame;
+  bool java_frame;
+} InstructionInfo;
+
+typedef struct AsyncTrace {
+  std::unique_ptr<InstructionInfo[]> instructions{};
+  int64_t size{};
+  AsyncTrace(std::unique_ptr<InstructionInfo[]> instructions, uint64_t size) : instructions(std::move(instructions)), size(size) {};
+} AsyncTrace;
+
 typedef void (*AsyncGetCallTrace)(ASGCTCallTrace *trace, jint depth, void *ucontext);
 }
 #endif

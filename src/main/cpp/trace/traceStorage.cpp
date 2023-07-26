@@ -7,6 +7,12 @@
 
 #include "../utils/log.h"
 
+#ifdef __APPLE__
+#define RUSAGE_KIND RUSAGE_SELF
+#elif
+#define RUSAGE_KIND RUSAGE_THREAD
+#endif
+
 namespace kotlin_tracer {
 using std::shared_ptr, std::make_shared, std::unique_ptr, std::make_unique, std::list;
 
@@ -38,13 +44,13 @@ TraceStorage::~TraceStorage() {
   logDebug("Cleaning trace storage finished");
 }
 
-void TraceStorage::addRawTrace(TraceTime time, shared_ptr<ASGCTCallTrace> trace,
+void TraceStorage::addRawTrace(TraceTime time, const shared_ptr<AsyncTrace>& trace,
                                pthread_t thread, int64_t coroutine_id) {
   auto record = std::make_shared<RawCallTraceRecord>(RawCallTraceRecord{});
   record->time = time;
-  record->trace = std::move(trace);
+  record->trace = trace;
   record->thread = thread;
-  record->trace_count = record->trace->num_frames;
+  record->trace_count = record->trace->size;
   record->coroutine_id = coroutine_id;
   raw_list_->push_back(record);
 }
@@ -91,7 +97,7 @@ void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
       rusage{},
       std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
   });
-  getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
+  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
   coroutine_info_map_->insert(
       coroutine_id,
       coroutine_info

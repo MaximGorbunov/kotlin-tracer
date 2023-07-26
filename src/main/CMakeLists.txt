@@ -1,11 +1,20 @@
 add_compile_options(
-        "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter"
-        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;-fno-omit-frame-pointer;-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
+        "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu"
+        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;>"
+        "$<$<BOOL:$ENV{THREAD_SANITIZER}>:-fsanitize=thread;-fsanitize=undefined;>"
+        "$<$<BOOL:$ENV{ADDRESS_SANITIZER}>:-fsanitize=address;-fsanitize=undefined;>"
 )
 
-link_libraries("unwind")
+if (NOT APPLE)
+    link_libraries("unwind")
+endif(NOT APPLE)
+
+link_directories($ENV{JAVA_HOME}/lib/server/)
+link_libraries(jvm)
+
 add_link_options(
-        "$<$<CONFIG:DEBUG>:-fsanitize=undefined;$<IF:$<BOOL:$ENV{THREAD_SANITIZER}>,-fsanitize=thread,-fsanitize=address>>"
+        "$<$<BOOL:$ENV{THREAD_SANITIZER}>:-fsanitize=thread;-fsanitize=undefined;>"
+        "$<$<BOOL:$ENV{ADDRESS_SANITIZER}>:-fsanitize=address;-fsanitize=undefined;>"
 )
 
 string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)

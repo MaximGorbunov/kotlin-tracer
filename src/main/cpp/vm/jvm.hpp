@@ -36,7 +36,7 @@ class JVM {
   void dettachThread();
   static void initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env);
   static void loadMethodsId(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jclass klass);
-  void getCodeCache(uint64_t pointer, uint64_t fp);
+  jmethodID getCodeCache(uint64_t pointer, uint64_t fp);
 
  private:
   std::shared_ptr<JavaVM> java_vm_;

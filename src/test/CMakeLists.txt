@@ -41,7 +41,7 @@ macro(add_test test)
     string(REPLACE "/" "_" name ${test})
     add_executable(
             ${name}
-            cpp/${test}.cpp
+            ${PROJECT_SOURCE_DIR}/src/test/cpp/${test}.cpp
     )
     target_link_libraries(
             ${name}
@@ -55,8 +55,8 @@ macro(add_mock_test test mocks sources)
     add_executable(
             ${name}
             ${sources}
-            cpp/mock/${mocks}
-            cpp/${test}.cpp
+            ${PROJECT_SOURCE_DIR}/src/test/cpp/mock/${mocks}
+            ${PROJECT_SOURCE_DIR}/src/test/cpp/${test}.cpp
     )
     target_link_libraries(
             ${name}

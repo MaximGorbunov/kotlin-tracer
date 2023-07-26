@@ -43,7 +43,7 @@ class Profiler {
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
   std::string output_path_;
-  ASGCTCallTrace *trace_;
+  AsyncTrace *trace_;
   std::atomic_long trace_coroutine_id;
 
   Profiler(std::shared_ptr<JVM> jvm,
@@ -52,8 +52,8 @@ class Profiler {
            std::chrono::nanoseconds interval);
   void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
   void processTraces();
-  std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId,
-                                                 jint lineno);
+  std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId, jint lineno);
+  std::unique_ptr<StackFrame> processProfilerMethodInfo(const InstructionInfo &instruction_info);
   static inline std::string tickToMessage(jint ticks);
 };
 }

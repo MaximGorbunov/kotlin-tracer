@@ -63,7 +63,7 @@ static inline std::unique_ptr<std::string> printSuspension(
   auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(suspension->end - suspension->start));
   for (auto &frame : *suspension->suspension_stack_trace) {
-    stack_trace_stream << *frame->frame + std::to_string(frame->line_number) << "<br>";
+    stack_trace_stream << *frame->frame << "<br>";
   }
   auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
   file << "data[0].labels.push('" + *stack_trace + "');\n";
@@ -89,7 +89,9 @@ struct TraceCount {
 };
 
 static void printTraceLevel(Level *level, std::ofstream &file, const std::string &parent) {
+  logDebug("Print traces: " + std::to_string(level != nullptr));
   if (level != nullptr) {
+    logDebug("Print traces levels: " + std::to_string(level->traces.size()));
     for (const auto &item : level->traces) {
       auto trace_name = "_[" + std::to_string(item.id) + "]_" + *item.method;
       file << "data[0].labels.push('" + trace_name + "');\n";
@@ -107,6 +109,7 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
 
   std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](const shared_ptr<ProcessedTraceRecord>& trace_record) {
     Level *current_level = root.get();
+    logDebug("Stack trace size: " + std::to_string(trace_record->stack_trace->size()));
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
       if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
@@ -121,12 +124,14 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
         }
         if (!found) {
           auto next_level = std::make_unique<Level>(Level{});
+          logDebug("Method: " + *method);
           current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
           current_level = current_level->traces.back().next.get();
         }
       }
     }
   };
+  logDebug("Traces size: " + std::to_string(traces->size()));
   traces->forEach(func);
   printTraceLevel(root.get(), file, parent);
 }

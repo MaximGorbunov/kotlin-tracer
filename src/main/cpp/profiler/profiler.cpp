@@ -5,17 +5,21 @@
 #include <list>
 #include <string>
 #include <sys/resource.h>
-#define UNW_LOCAL_ONLY
-#if defined(__x86_64__) || defined(_M_X64)
-#include <libunwind-x86_64.h>
-#endif
-
 #include <cxxabi.h>
 
+#include "unwind/apple_aarch64.inline.hpp"
+#include "unwind/apple_x86_64.inline.hpp"
+#include "unwind/linux_x86_64.inline.hpp"
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
 #include "../utils/log.h"
 #include "../utils/suspensionPlot.hpp"
+
+#ifdef __APPLE__
+#define RUSAGE_KIND RUSAGE_SELF
+#elif
+#define RUSAGE_KIND RUSAGE_THREAD
+#endif
 
 using std::shared_ptr, std::unique_ptr, std::thread, std::string, std::to_string, std::make_unique, std::runtime_error,
     std::make_shared, std::list, std::size;
@@ -46,37 +50,7 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
                              void *ucontext) {
   if (!active_.test(std::memory_order_relaxed)) return;
   trace_coroutine_id.load(std::memory_order_acquire);
-  trace_->env_id = jvm_->getJNIEnv();
-  async_trace_ptr_(trace_, 30, ucontext);
-  logDebug("ticks: " + to_string(trace_->num_frames));
-  if (trace_->num_frames > -1000) {
-    logDebug("NATIVE FRAME HERE");
-    unw_context_t context;
-    unw_cursor_t cursor;
-    unw_getcontext(&context);
-    unw_init_local(&cursor, &context);
-    while (unw_step(&cursor) > 0 && unw_is_signal_frame(&cursor)) {
-      //skip current signal frames
-    }
-    unw_word_t ip, rbp, offset;
-    char buf[256];
-    do {
-      unw_get_reg(&cursor, UNW_REG_IP, &ip);
-      unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
-      Dl_info info{};
-      if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
-//        abi::__cxa_demangle(buf,
-        if (dladdr(reinterpret_cast<void *>(ip), &info)) {
-          logDebug(string(info.dli_fname) + ":" + string(buf));
-        } else {
-          logDebug(string(buf));
-        }
-      } else {
-        logDebug("Symbol not found through dladdr");
-        jvm_->getCodeCache(ip, rbp);
-      };
-    } while (unw_step(&cursor) > 0);
-  }
+  unwind_stack(static_cast<ucontext_t *>(ucontext), jvm_, trace_);
   int64_t coroutine_id = current_coroutine_id;
   if (current_coroutine_id == -1) {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
@@ -117,21 +91,18 @@ void Profiler::startProfiler() {
     logDebug("[Kotlin-tracer] Profiler thread started");
     jvm_->attachThread();
     std::function<void(shared_ptr<ThreadInfo>)> lambda = [this](const shared_ptr<ThreadInfo> &thread) {
-      auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace{});
-      trace->env_id = jvm_->getJNIEnv();
-      trace->frames = reinterpret_cast<ASGCTCallFrame *>(calloc(30, sizeof(ASGCTCallFrame)));
-      trace->num_frames = 0;
+      if (*thread->name != "main") return;
+      auto array = make_unique<InstructionInfo[]>(30);
+      auto trace = std::make_shared<AsyncTrace>(std::move(array), 30);
       trace_ = trace.get();
       trace_coroutine_id.store(0, std::memory_order_release);
       pthread_kill(thread->id, SIGVTALRM);
       trace_coroutine_id.wait(0, std::memory_order_acquire);
-      if (trace->num_frames > 0) { // Inside JAVA
-        getInstance()->storage_.addRawTrace(
-            currentTimeMs(),
-            trace,
-            thread->id,
-            trace_coroutine_id.load(std::memory_order_relaxed));
-      }
+      getInstance()->storage_.addRawTrace(
+          currentTimeNs(),
+          trace,
+          thread->id,
+          trace_coroutine_id.load(std::memory_order_relaxed));
     };
     while (active_.test(std::memory_order_relaxed)) {
       auto threads = jvm_->getThreads();
@@ -169,7 +140,7 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   auto last_user_time = coroutine_info->last_rusage.ru_utime;
   auto last_voluntary_context_switch = coroutine_info->last_rusage.ru_nvcsw;
   auto last_involuntary_context_switch = coroutine_info->last_rusage.ru_nivcsw;
-  getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
+  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
   coroutine_info->cpu_system_clock_running_time_us +=
       calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
   coroutine_info->cpu_user_clock_running_time_us +=
@@ -190,7 +161,7 @@ void Profiler::traceStart() {
   TraceInfo trace_info{coroutine_id, start, 0};
   storage_.createChildCoroutineStorage(coroutine_id);
   if (storage_.addOngoingTraceInfo(trace_info)) {
-//    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
+    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
   } else {
     throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
@@ -208,9 +179,9 @@ void Profiler::traceEnd(jlong coroutine_id) {
   traceInfo.end = finish;
   removeOngoingTrace(traceInfo.coroutine_id);
   auto elapsedTime = traceInfo.end - traceInfo.start;
-//  logDebug("trace end: " + to_string(finish) + ":" + to_string(coroutine_id) + " time: "
-//               + to_string(elapsedTime));
-//  logDebug("threshold: " + to_string(threshold_.count()));
+  logDebug("trace end: " + to_string(finish) + ":" + to_string(coroutine_id) + " time: "
+               + to_string(elapsedTime));
+  logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
     plot(output_path_ + "/trace" + to_string(++trace_counter) + ".html", traceInfo, storage_);
   }
@@ -235,8 +206,8 @@ void Profiler::processTraces() {
     processedRecord->time = rawRecord->time;
     shared_ptr<list<unique_ptr<StackFrame>>> methods = make_shared<list<unique_ptr<StackFrame>>>();
     for (int i = 0; i < rawRecord->trace_count; i++) {
-      ASGCTCallFrame frame = rawRecord->trace->frames[i];
-      methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
+      auto instruction = rawRecord->trace->instructions[i];
+      methods->push_back(processProfilerMethodInfo(instruction));
     }
     logDebug("====End");
     processedRecord->stack_trace = std::move(methods);
@@ -280,6 +251,56 @@ unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint line
     string line = to_string(lineno);
     logDebug(*method_info_map_.get(methodId));
     return make_unique<StackFrame>(StackFrame{method_info_map_.get(methodId), lineno});
+  }
+}
+
+unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo &instruction_info) {
+  Dl_info info{};
+  if (instruction_info.java_frame) {
+    auto jmethodId = reinterpret_cast<jmethodID>(instruction_info.instruction);
+    if (jmethodId != nullptr) {
+      if (!method_info_map_.contains(jmethodId)) {
+        auto jvmti = jvm_->getJvmTi();
+        char *pName;
+        char *pSignature;
+        char *pGeneric;
+
+        jvmtiError err = jvmti->GetMethodName(jmethodId, &pName, &pSignature, &pGeneric);
+        if (err != JVMTI_ERROR_NONE) {
+          printf("Error finding profiler method info: %d\n", err);
+        }
+        string name(pName);
+        string signature(pSignature);
+        jvmti->Deallocate((unsigned char *) pName);
+        jvmti->Deallocate((unsigned char *) pSignature);
+        jvmti->Deallocate((unsigned char *) pGeneric);
+        jclass klass;
+        char *pClassName;
+        err = jvmti->GetMethodDeclaringClass(jmethodId, &klass);
+        if (err != JVMTI_ERROR_NONE) {
+          logDebug("Error finding class: %d");
+        }
+        err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
+        string className(pClassName, strlen(pClassName) - 1);
+        jvmti->Deallocate((unsigned char *) pClassName);
+        if (err != JVMTI_ERROR_NONE) {
+          logDebug("Error finding class name: " + to_string(err));
+        }
+        shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
+        method_info_map_.insert(jmethodId, method);
+        return make_unique<StackFrame>(StackFrame{method, 0});
+      } else {
+        return make_unique<StackFrame>(StackFrame{method_info_map_.get(jmethodId), 0});
+      }
+    } else {
+      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown java"), 0});
+    }
+  } else {
+    if (dladdr(reinterpret_cast<void *>(instruction_info.instruction), &info)) {
+      return make_unique<StackFrame>(StackFrame{make_shared<string>(string(info.dli_fname) + ": " + info.dli_sname), 0});
+    } else {
+      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown native"), 0});
+    }
   }
 }
 

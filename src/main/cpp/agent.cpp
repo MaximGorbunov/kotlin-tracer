@@ -65,10 +65,22 @@ void JNICALL VMInit(
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
   //Install coroutine debug probes
   auto debug_probes = jni_env->FindClass("kotlinx/coroutines/debug/DebugProbes");
+  if (debug_probes == nullptr) {
+    throw runtime_error("kotlinx/coroutines/debug/DebugProbes not found");
+  }
   auto install_method = jni_env->GetMethodID(debug_probes, "install", "()V");
+  if (install_method == nullptr) {
+    throw runtime_error("DebugProbes.install method not found");
+  }
   auto instance_field = jni_env->GetStaticFieldID(debug_probes, "INSTANCE", "Lkotlinx/coroutines/debug/DebugProbes;");
+  if (instance_field == nullptr) {
+    throw runtime_error("DebugProbes.INSTANCE field not found");
+  }
   auto instance = jni_env->GetStaticObjectField(debug_probes, instance_field);
-  jni_env->CallVoidMethod(instance, install_method);
+  if (instance == nullptr) {
+    throw runtime_error("DebugProbes.INSTANCE is null");
+  }
+//  jni_env->CallVoidMethod(instance, install_method);
 
   agent->getProfiler()->startProfiler();
 }
