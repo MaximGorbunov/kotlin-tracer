@@ -7,6 +7,7 @@
 #include "model/asyncTrace.hpp"
 #include "trace/traceStorage.hpp"
 #include "../vm/jvm.hpp"
+#include "concurrentCollections/concurrentVector.h"
 
 #define NOT_FOUND (-1)
 
@@ -43,8 +44,8 @@ class Profiler {
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
   std::string output_path_;
-  AsyncTrace *trace_;
-  std::atomic_long trace_coroutine_id;
+  std::unique_ptr<ConcurrentVector<std::shared_ptr<AsyncTrace>>> traces_;
+  std::atomic_int trace_counter{0};
 
   Profiler(std::shared_ptr<JVM> jvm,
            std::chrono::nanoseconds threshold,

@@ -9,7 +9,7 @@
 
 #ifdef __APPLE__
 #define RUSAGE_KIND RUSAGE_SELF
-#elif
+#elif defined(__linux__)
 #define RUSAGE_KIND RUSAGE_THREAD
 #endif
 

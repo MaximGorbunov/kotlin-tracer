@@ -68,6 +68,7 @@ endmacro()
 
 add_test(concurrentCollections/concurrentListTest)
 add_test(concurrentCollections/concurrentMapTest)
+add_test(concurrentCollections/concurrentVectorTest)
 add_test(argsParserTest)
 add_test(instrumentationTest)
 add_mock_test(jni/jniInstrumentatorTest agentThrow.cpp ${SOURCES_DIR}/jni/jni_instrumentator.cpp)

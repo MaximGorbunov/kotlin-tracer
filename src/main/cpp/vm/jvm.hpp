@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <thread>
 #include <list>
+#include <utility>
 #include <pthread.h>
 
 #include "concurrentCollections/concurrentList.h"
@@ -16,6 +17,8 @@ namespace kotlin_tracer {
 typedef struct threadInfo {
   const std::shared_ptr<std::string> name;
   const pthread_t id;
+  std::atomic_int current_traces = 0;
+  threadInfo(std::shared_ptr<std::string> _name, pthread_t _id): name(std::move(_name)), id(_id), current_traces(0) {}
 } ThreadInfo;
 
 typedef struct InstrumentationMetadata {

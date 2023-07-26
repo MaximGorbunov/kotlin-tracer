@@ -54,7 +54,7 @@ void JVM::addCurrentThread(::jthread thread) {
     return;
   }
   auto name = std::make_shared<std::string>(info.name);
-  auto threadInfo = std::make_shared<ThreadInfo>(ThreadInfo{name, currentThread});
+  auto threadInfo = std::make_shared<ThreadInfo>(name, currentThread);
   threads_->push_back(threadInfo);
 }
 
@@ -162,30 +162,32 @@ void JVM::resolveVMTypes() {
 typedef u_char *address;
 typedef unsigned short u2;
 jmethodID JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
-  auto compiledMethodType = types_.at("CompiledMethod");
-  auto compiledMethodFiled = compiledMethodType.fields->at("_method");
-  auto methodType = types_.at("Method");
-  auto constMethodField = methodType.fields->at("_constMethod");
-  auto constMethodType = types_.at("ConstMethod");
-  auto constantsField = constMethodType.fields->at("_constants");
-  auto methodIdNumField = constMethodType.fields->at("_method_idnum");
-  auto constantPoolType = types_.at("ConstantPool");
-  auto poolHolderField = constantPoolType.fields->at("_pool_holder");
-  auto instanceKlassType = types_.at("InstanceKlass");
-  auto jmethodIdsField = instanceKlassType.fields->at("_methods_jmethod_ids");
-  auto growableArrayBaseType = types_.at("GrowableArrayBase");
-  auto codeBlobType = types_.at("CodeBlob");
-  auto codeBlobNameField = codeBlobType.fields->at("_name");
-  auto growableArrayType = types_.at("GrowableArray<int>");
-  auto codeHeapType = types_.at("CodeHeap");
-  auto memoryField = codeHeapType.fields->at("_memory");
-  auto segmapField = codeHeapType.fields->at("_segmap");
-  auto log2SegmentSizeField = codeHeapType.fields->at("_log2_segment_size");
-  auto virtualSpaceType = types_.at("VirtualSpace");
-  auto lowField = virtualSpaceType.fields->at("_low");
-  auto highField = virtualSpaceType.fields->at("_high");
-  auto heaps = *reinterpret_cast<uint64_t *>(types_.at("CodeCache").fields->at("_heaps")->offset);
-  auto data = *reinterpret_cast<uint64_t **>(heaps + growableArrayType.fields->at("_data")->offset);
+  static const auto compiledMethodType = types_.at("CompiledMethod");
+  static const auto compiledMethodFiled = compiledMethodType.fields->at("_method");
+  static const auto methodType = types_.at("Method");
+  static const auto constMethodField = methodType.fields->at("_constMethod");
+  static const auto constMethodType = types_.at("ConstMethod");
+  static const auto constantsField = constMethodType.fields->at("_constants");
+  static const auto methodIdNumField = constMethodType.fields->at("_method_idnum");
+  static const auto constantPoolType = types_.at("ConstantPool");
+  static const auto poolHolderField = constantPoolType.fields->at("_pool_holder");
+  static const auto instanceKlassType = types_.at("InstanceKlass");
+  static const auto jmethodIdsField = instanceKlassType.fields->at("_methods_jmethod_ids");
+  static const auto growableArrayBaseType = types_.at("GrowableArrayBase");
+  static const auto codeBlobType = types_.at("CodeBlob");
+  static const auto codeBlobNameField = codeBlobType.fields->at("_name");
+  static const auto growableArrayType = types_.at("GrowableArray<int>");
+  static const auto codeHeapType = types_.at("CodeHeap");
+  static const auto memoryField = codeHeapType.fields->at("_memory");
+  static const auto segmapField = codeHeapType.fields->at("_segmap");
+  static const auto log2SegmentSizeField = codeHeapType.fields->at("_log2_segment_size");
+  static const auto virtualSpaceType = types_.at("VirtualSpace");
+  static const auto lowField = virtualSpaceType.fields->at("_low");
+  static const auto highField = virtualSpaceType.fields->at("_high");
+  static const auto &heaps_offset = types_.at("CodeCache").fields->at("_heaps")->offset;
+  static const auto data_offset = growableArrayType.fields->at("_data")->offset;
+  auto heaps = *reinterpret_cast<uint64_t *>(heaps_offset);
+  auto data = *reinterpret_cast<uint64_t **>(heaps + data_offset);
   auto len = *reinterpret_cast<int *>(heaps + growableArrayBaseType.fields->at("_len")->offset);
   for (int i = 0; i < len; ++i) {
     auto heap_ptr = data[i];
@@ -237,8 +239,8 @@ jmethodID JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
         auto constMethod_ptr = *reinterpret_cast<uint64_t *>(method_ptr + constMethodField->offset);
         auto idnum = *reinterpret_cast<u2*>(constMethod_ptr + methodIdNumField->offset);
         auto constantPool_ptr = *reinterpret_cast<uint64_t *>(constMethod_ptr + constantsField->offset);
-        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(constantPool_ptr + poolHolderField->offset);
         std::atomic_thread_fence(std::memory_order_acquire);
+        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(constantPool_ptr + poolHolderField->offset);
         auto jmethodIds = *reinterpret_cast<jmethodID**>(poolHolder_ptr + jmethodIdsField->offset);
         size_t length;
         jmethodID id = nullptr;

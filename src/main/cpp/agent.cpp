@@ -80,7 +80,7 @@ void JNICALL VMInit(
   if (instance == nullptr) {
     throw runtime_error("DebugProbes.INSTANCE is null");
   }
-//  jni_env->CallVoidMethod(instance, install_method);
+  jni_env->CallVoidMethod(instance, install_method);
 
   agent->getProfiler()->startProfiler();
 }

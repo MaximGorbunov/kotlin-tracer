@@ -109,7 +109,6 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
 
   std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](const shared_ptr<ProcessedTraceRecord>& trace_record) {
     Level *current_level = root.get();
-    logDebug("Stack trace size: " + std::to_string(trace_record->stack_trace->size()));
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
       if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
