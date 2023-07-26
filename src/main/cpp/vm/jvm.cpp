@@ -159,15 +159,20 @@ void JVM::resolveVMTypes() {
   }
 }
 
-typedef u_char*       address;
+typedef u_char *address;
 typedef unsigned short u2;
-void JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
+jmethodID JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
   auto compiledMethodType = types_.at("CompiledMethod");
   auto compiledMethodFiled = compiledMethodType.fields->at("_method");
   auto methodType = types_.at("Method");
   auto constMethodField = methodType.fields->at("_constMethod");
   auto constMethodType = types_.at("ConstMethod");
-  auto methodIdField = constMethodType.fields->at("_method_idnum");
+  auto constantsField = constMethodType.fields->at("_constants");
+  auto methodIdNumField = constMethodType.fields->at("_method_idnum");
+  auto constantPoolType = types_.at("ConstantPool");
+  auto poolHolderField = constantPoolType.fields->at("_pool_holder");
+  auto instanceKlassType = types_.at("InstanceKlass");
+  auto jmethodIdsField = instanceKlassType.fields->at("_methods_jmethod_ids");
   auto growableArrayBaseType = types_.at("GrowableArrayBase");
   auto codeBlobType = types_.at("CodeBlob");
   auto codeBlobNameField = codeBlobType.fields->at("_name");
@@ -182,56 +187,69 @@ void JVM::getCodeCache(uint64_t pointer, uint64_t fp) {
   auto heaps = *reinterpret_cast<uint64_t *>(types_.at("CodeCache").fields->at("_heaps")->offset);
   auto data = *reinterpret_cast<uint64_t **>(heaps + growableArrayType.fields->at("_data")->offset);
   auto len = *reinterpret_cast<int *>(heaps + growableArrayBaseType.fields->at("_len")->offset);
-  if (len > 0) {
-    for (int i = 0; i < len; ++i) {
-      auto heap_ptr = data[i];
-      auto memory_ptr = heap_ptr + memoryField->offset;
-      auto segmap_ptr = heap_ptr + segmapField->offset;
-      auto _log2_segment_size = *reinterpret_cast<int*>(heap_ptr + log2SegmentSizeField->offset);
-      auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
-      auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
-      if (low <= pointer && pointer < high) {
-        auto seg_map = *reinterpret_cast<address*>(segmap_ptr + lowField->offset);
-        size_t  seg_idx = (pointer - low) >> _log2_segment_size;
+  for (int i = 0; i < len; ++i) {
+    auto heap_ptr = data[i];
+    auto memory_ptr = heap_ptr + memoryField->offset;
+    auto segmap_ptr = heap_ptr + segmapField->offset;
+    auto _log2_segment_size = *reinterpret_cast<int *>(heap_ptr + log2SegmentSizeField->offset);
+    auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
+    auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
+    if (low <= pointer && pointer < high) {
+      auto seg_map = *reinterpret_cast<address *>(segmap_ptr + lowField->offset);
+      size_t seg_idx = (pointer - low) >> _log2_segment_size;
 
-        // This may happen in special cases. Just ignore.
-        // Example: PPC ICache stub generation.
+      // This may happen in special cases. Just ignore.
+      // Example: PPC ICache stub generation.
 //        if (is_segment_unused(seg_map[seg_idx])) {
 //          return NULL;
 //        }
 
-        // Iterate the segment map chain to find the start of the block.
-        while (seg_map[seg_idx] > 0) {
-          // Don't check each segment index to refer to a used segment.
-          // This method is called extremely often. Therefore, any checking
-          // has a significant impact on performance. Rely on CodeHeap::verify()
-          // to do the job on request.
-          seg_idx -= (int)seg_map[seg_idx];
+      // Iterate the segment map chain to find the start of the block.
+      while (seg_map[seg_idx] > 0) {
+        // Don't check each segment index to refer to a used segment.
+        // This method is called extremely often. Therefore, any checking
+        // has a significant impact on performance. Rely on CodeHeap::verify()
+        // to do the job on request.
+        seg_idx -= (int) seg_map[seg_idx];
+      }
+      auto heapBlockAddr = (uint64_t) (low + (seg_idx << _log2_segment_size));
+      heapBlockAddr += types_.at("HeapBlock").size;
+      auto codeBlobName = *(char **) (heapBlockAddr + codeBlobNameField->offset);
+      const auto &codeBlobNameStr = string(codeBlobName);
+      if (codeBlobNameStr == "Interpreter") {
+        auto *fp_ptr = (intptr_t *) fp;
+        intptr_t method_ptr = fp_ptr[-3];
+        auto constMethod_ptr = *reinterpret_cast<uint64_t *>(method_ptr + constMethodField->offset);
+        auto idnum = *reinterpret_cast<u2*>(constMethod_ptr + methodIdNumField->offset);
+        auto constantPool_ptr = *reinterpret_cast<uint64_t *>(constMethod_ptr + constantsField->offset);
+        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(constantPool_ptr + poolHolderField->offset);
+        std::atomic_thread_fence(std::memory_order_acquire);
+        auto jmethodIds = *reinterpret_cast<jmethodID**>(poolHolder_ptr + jmethodIdsField->offset);
+        size_t length;
+        jmethodID id = nullptr;
+        if (jmethodIds != 0 &&                         // If there is a cache
+            (length = (size_t)jmethodIds[0]) > idnum) {   // and if it is long enough,
+          id = jmethodIds[idnum+1];                       // Look up the id (may be NULL)
         }
-        auto heapBlockAddr = (uint64_t)(low + (seg_idx << _log2_segment_size));
-        heapBlockAddr += types_.at("HeapBlock").size;
-        auto codeBlobName = *(char**)(heapBlockAddr + codeBlobNameField->offset);
-        const auto &codeBlobNameStr = string(codeBlobName);
-        logDebug("Code blob:" + codeBlobNameStr);
-        if (codeBlobNameStr == "Interpreter") {
-          auto *fp_ptr = (intptr_t *) fp;
-          intptr_t method_ptr = fp_ptr[-3];
-          char *pName;
-          char *pSignature;
-          char *pGeneric;
-          jvmti_env_->GetMethodName((jmethodID)(&method_ptr), &pName, &pSignature, &pGeneric);
-          logDebug("Method name: " + string(pName));
-        } else if (codeBlobNameStr.contains("nmethod")) {
-          auto method_ptr = *reinterpret_cast<uint64_t *>(heapBlockAddr + compiledMethodFiled->offset);
-          char *pName;
-          char *pSignature;
-          char *pGeneric;
-          jvmti_env_->GetMethodName((jmethodID)(&method_ptr), &pName, &pSignature, &pGeneric);
-          logDebug("NMethod name: " + string(pName));
+        return id;
+      } else if (codeBlobNameStr.contains("nmethod")) {
+        auto method_ptr = *reinterpret_cast<uint64_t *>(heapBlockAddr + compiledMethodFiled->offset);
+        auto constMethod_ptr = *reinterpret_cast<uint64_t *>(method_ptr + constMethodField->offset);
+        auto idnum = *reinterpret_cast<u2*>(constMethod_ptr + methodIdNumField->offset);
+        auto constantPool_ptr = *reinterpret_cast<uint64_t *>(constMethod_ptr + constantsField->offset);
+        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(constantPool_ptr + poolHolderField->offset);
+        std::atomic_thread_fence(std::memory_order_acquire);
+        auto jmethodIds = *reinterpret_cast<jmethodID**>(poolHolder_ptr + jmethodIdsField->offset);
+        size_t length;
+        jmethodID id = nullptr;
+        if (jmethodIds != 0 &&                         // If there is a cache
+            (length = (size_t)jmethodIds[0]) > idnum) {   // and if it is long enough,
+          id = jmethodIds[idnum+1];                       // Look up the id (may be NULL)
         }
-
+        return id;
       }
     }
   }
+  return nullptr;
 }
 }  // namespace kotlin_tracer
