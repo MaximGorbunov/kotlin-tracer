@@ -1,15 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/linux,windows,macos,c++,java,kotlin,gradle,cmake
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,windows,macos,c++,java,kotlin,gradle,cmake
 
-kotlin-tracer-java/build/
+kotlin-tracer-java/build/**
 ### C++ ###
 # Prerequisites
 *.d
-cmake-build-debug/
-cmake-build-debug-tsan/
-cmake-build-release/
-cmake_build_Debug/
-cmake_build_Release/
+cmake-build-*/
 .cache/
 .idea/
 .settings/
