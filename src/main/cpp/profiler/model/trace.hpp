@@ -13,8 +13,8 @@
 namespace kotlin_tracer {
 typedef struct RawCallTraceRecord {
   TraceTime time;
-  int trace_count;
-  std::shared_ptr<ASGCTCallTrace> trace;
+  int64_t trace_count;
+  std::shared_ptr<AsyncTrace> trace;
   pthread_t thread;
   int64_t coroutine_id;
 } RawCallTraceRecord;
@@ -27,6 +27,7 @@ typedef struct StackFrame {
 typedef struct ProcessedTraceRecord {
   std::shared_ptr<std::list<std::unique_ptr<StackFrame>>> stack_trace;
   std::shared_ptr<std::string> thread_name;
+  TraceTime time;
 } ProcessedTraceRecord;
 
 typedef struct TraceInfo {

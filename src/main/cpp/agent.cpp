@@ -18,6 +18,7 @@ typedef std::unique_lock<std::shared_mutex> write_lock;
 
 static unique_ptr<kotlin_tracer::Agent> agent;
 static shared_mutex mutex;
+static std::atomic_flag attached{false};
 
 // Required to be enabled for AsyncTrace usage
 void JNICALL ClassLoad(__attribute__((unused)) jvmtiEnv *jvmti_env,
@@ -64,9 +65,21 @@ void JNICALL VMInit(
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
   //Install coroutine debug probes
   auto debug_probes = jni_env->FindClass("kotlinx/coroutines/debug/DebugProbes");
+  if (debug_probes == nullptr) {
+    throw runtime_error("kotlinx/coroutines/debug/DebugProbes not found");
+  }
   auto install_method = jni_env->GetMethodID(debug_probes, "install", "()V");
+  if (install_method == nullptr) {
+    throw runtime_error("DebugProbes.install method not found");
+  }
   auto instance_field = jni_env->GetStaticFieldID(debug_probes, "INSTANCE", "Lkotlinx/coroutines/debug/DebugProbes;");
+  if (instance_field == nullptr) {
+    throw runtime_error("DebugProbes.INSTANCE field not found");
+  }
   auto instance = jni_env->GetStaticObjectField(debug_probes, instance_field);
+  if (instance == nullptr) {
+    throw runtime_error("DebugProbes.INSTANCE is null");
+  }
   jni_env->CallVoidMethod(instance, install_method);
 
   agent->getProfiler()->startProfiler();
@@ -109,33 +122,35 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
     char *options,
     __attribute__((unused)) void *reserved
 ) {
-  if (options == nullptr || strlen(options) == 0) {
-    throw runtime_error("method name required for interception!");
-  }
-  string optionsStr(options);
-  logDebug("======Kotlin tracer initialization start======");
-  logDebug("Options:" + optionsStr);
-  auto profilerOptions =
-      kotlin_tracer::ArgsParser::parseProfilerOptions(optionsStr);
-  logDebug("Parsed class:" + *profilerOptions->class_name);
-  logDebug("Parsed method:" + *profilerOptions->method_name);
-  logDebug(
-      "Parsed period:" + to_string(profilerOptions->profiling_period.count()));
+  if (!attached.test_and_set(std::memory_order::relaxed)) { // Initialize once
+    if (options == nullptr || strlen(options) == 0) {
+      throw runtime_error("method name required for interception!");
+    }
+    string optionsStr(options);
+    logDebug("======Kotlin tracer initialization start======");
+    logDebug("Options:" + optionsStr);
+    auto profilerOptions =
+        kotlin_tracer::ArgsParser::parseProfilerOptions(optionsStr);
+    logDebug("Parsed class:" + *profilerOptions->class_name);
+    logDebug("Parsed method:" + *profilerOptions->method_name);
+    logDebug(
+        "Parsed period:" + to_string(profilerOptions->profiling_period.count()));
 
-  auto callbacks = make_unique<jvmtiEventCallbacks>();
-  callbacks->VMStart = VMStart;
-  callbacks->ThreadStart = ThreadStart;
-  callbacks->ClassPrepare = ClassPrepare;
-  callbacks->ClassLoad = ClassLoad;
-  callbacks->ClassFileLoadHook = ClassFileLoadHook;
-  callbacks->VMInit = VMInit;
-  callbacks->GarbageCollectionStart = GarbageCollectionStart;
-  callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
-  agent = make_unique<kotlin_tracer::Agent>(
-      std::shared_ptr<JavaVM>(java_vm,
-                              [](JavaVM *vm) {}),
-      std::move(callbacks),
-      std::move(profilerOptions));
+    auto callbacks = make_unique<jvmtiEventCallbacks>();
+    callbacks->VMStart = VMStart;
+    callbacks->ThreadStart = ThreadStart;
+    callbacks->ClassPrepare = ClassPrepare;
+    callbacks->ClassLoad = ClassLoad;
+    callbacks->ClassFileLoadHook = ClassFileLoadHook;
+    callbacks->VMInit = VMInit;
+    callbacks->GarbageCollectionStart = GarbageCollectionStart;
+    callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
+    agent = make_unique<kotlin_tracer::Agent>(
+        std::shared_ptr<JavaVM>(java_vm,
+                                [](JavaVM *vm) {}),
+        std::move(callbacks),
+        std::move(profilerOptions));
+  }
   return 0;
 }
 

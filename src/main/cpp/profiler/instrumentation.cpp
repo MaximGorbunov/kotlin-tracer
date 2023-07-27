@@ -28,6 +28,7 @@ void Instrumentation::instrument(JNIEnv *jni_env,
     jbyteArray transformed =
         instrumentCoroutines(class_data, class_data_len);
     jboolean copy = false;
+    if (transformed == nullptr) return;
     auto *new_code =
         (unsigned char *) jni_env->GetByteArrayElements(transformed, &copy);
     *new_class_data_len = jni_env->GetArrayLength(transformed);

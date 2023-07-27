@@ -6,15 +6,19 @@
 #include <unordered_map>
 #include <thread>
 #include <list>
+#include <utility>
 #include <pthread.h>
 
 #include "concurrentCollections/concurrentList.h"
+#include "vmStructs.h"
 
 namespace kotlin_tracer {
 
 typedef struct threadInfo {
   const std::shared_ptr<std::string> name;
   const pthread_t id;
+  std::atomic_int current_traces = 0;
+  threadInfo(std::shared_ptr<std::string> _name, pthread_t _id): name(std::move(_name)), id(_id), current_traces(0) {}
 } ThreadInfo;
 
 typedef struct InstrumentationMetadata {
@@ -35,11 +39,16 @@ class JVM {
   void dettachThread();
   static void initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env);
   static void loadMethodsId(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jclass klass);
+  jmethodID getCodeCache(uint64_t pointer, uint64_t fp);
 
  private:
   std::shared_ptr<JavaVM> java_vm_;
   jvmtiEnv *jvmti_env_;
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;
+  std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Field>>>> vm_structs_;
+  std::unordered_map<std::string, VMTypeEntry> types_;
+  void resolveVMStructs();
+  void resolveVMTypes();
 };
 }
 #endif //KOTLIN_TRACER_JVM_H

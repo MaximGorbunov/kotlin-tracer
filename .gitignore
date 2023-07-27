@@ -1,6 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/linux,windows,macos,c++,java,kotlin,gradle,cmake
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,windows,macos,c++,java,kotlin,gradle,cmake
 
+kotlin-tracer-java/build/
 ### C++ ###
 # Prerequisites
 *.d
@@ -201,3 +202,4 @@ gradle-app.setting
 *.hprof
 
 # End of https://www.toptal.com/developers/gitignore/api/linux,windows,macos,c++,java,kotlin,gradle,cmake
+/Dockerfile

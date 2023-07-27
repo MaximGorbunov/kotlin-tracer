@@ -63,7 +63,7 @@ static inline std::unique_ptr<std::string> printSuspension(
   auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(suspension->end - suspension->start));
   for (auto &frame : *suspension->suspension_stack_trace) {
-    stack_trace_stream << *frame->frame + std::to_string(frame->line_number) << "<br>";
+    stack_trace_stream << *frame->frame << "<br>";
   }
   auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
   file << "data[0].labels.push('" + *stack_trace + "');\n";
@@ -102,26 +102,28 @@ static void printTraceLevel(Level *level, std::ofstream &file, const std::string
 
 static std::atomic_int counter = 0;
 
-static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file, const string &parent) {
+static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file, const string &parent, const TraceInfo &trace_info) {
   unique_ptr<Level> root = std::make_unique<Level>(Level{});
 
-  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root](const shared_ptr<ProcessedTraceRecord>& trace_record) {
+  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](const shared_ptr<ProcessedTraceRecord>& trace_record) {
     Level *current_level = root.get();
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
-      auto method = std::make_unique<string>(*(*frame)->frame + std::to_string((*frame)->line_number));
-      bool found = false;
-      for (auto &trace_count : current_level->traces) {
-        if (*trace_count.method == *method) {
-          found = true;
-          ++trace_count.count;
-          current_level = trace_count.next.get();
+      if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
+        auto method = std::make_unique<string>(*(*frame)->frame + std::to_string((*frame)->line_number));
+        bool found = false;
+        for (auto &trace_count : current_level->traces) {
+          if (*trace_count.method == *method) {
+            found = true;
+            ++trace_count.count;
+            current_level = trace_count.next.get();
+          }
         }
-      }
-      if (!found) {
-        auto next_level = std::make_unique<Level>(Level{});
-        current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
-        current_level = current_level->traces.back().next.get();
+        if (!found) {
+          auto next_level = std::make_unique<Level>(Level{});
+          current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
+          current_level = current_level->traces.back().next.get();
+        }
       }
     }
   };
@@ -130,6 +132,7 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
 }
 
 static void print_trace_info(const string &parent,
+                             const TraceInfo &trace_info,
                              jlong coroutine_id,
                              std::ofstream &file,
                              const TraceStorage &storage) {
@@ -169,18 +172,12 @@ static void print_trace_info(const string &parent,
 
   auto traces = storage.getProcessedTraces(coroutine_id);
   if (traces != nullptr) {
-    logDebug("Processed traces: " + std::to_string(traces->size()));
-    printTraces(traces, file, "running#" + std::to_string(coroutine_id));
-  } else {
-    logDebug("Processed traces: 0");
+    printTraces(traces, file, "running#" + std::to_string(coroutine_id), trace_info);
   }
 
-  logDebug("Suspensions: " + std::to_string(coroutine_info->suspensions_list->size()));
   std::list<std::shared_ptr<SuspensionInfo>> chain;
   shared_ptr<SuspensionInfo> lastSuspensionInfo;
-  std::function<void(shared_ptr<SuspensionInfo>)>
-      suspensionPrint =
-      [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
+  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint = [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
         if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
           chain.push_front(suspension);
         } else {
@@ -198,8 +195,8 @@ static void print_trace_info(const string &parent,
       };
   coroutine_info->suspensions_list->forEach(suspensionPrint);
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
-    std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage](jlong childCoroutine) {
-      print_trace_info(coroutineName, childCoroutine, file, storage);
+    std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage, &trace_info](jlong childCoroutine) {
+      print_trace_info(coroutineName, trace_info, childCoroutine, file, storage);
     };
     auto children = storage.getChildCoroutines(coroutine_id);
     children->forEach(childCoroutinePrint);
@@ -227,7 +224,7 @@ void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &s
   if (file.is_open()) {
     file << *top_half;
     auto suspensions = storage.getCoroutineInfo(trace_info.coroutine_id);
-    print_trace_info("", trace_info.coroutine_id, file, storage);
+    print_trace_info("", trace_info, trace_info.coroutine_id, file, storage);
     auto const coroutineName = string("coroutine#" + std::to_string(trace_info.coroutine_id));
     print_gc_info(coroutineName, trace_info, file, storage);
     file << *bottom_half;

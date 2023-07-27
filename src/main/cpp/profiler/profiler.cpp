@@ -5,11 +5,21 @@
 #include <list>
 #include <string>
 #include <sys/resource.h>
+#include <cxxabi.h>
 
+#include "unwind/apple_aarch64.inline.hpp"
+#include "unwind/apple_x86_64.inline.hpp"
+#include "unwind/linux_x86_64.inline.hpp"
 #include "profiler.hpp"
 #include "trace/traceTime.hpp"
 #include "../utils/log.h"
 #include "../utils/suspensionPlot.hpp"
+
+#ifdef __APPLE__
+#define RUSAGE_KIND RUSAGE_SELF
+#elif defined(__linux__)
+#define RUSAGE_KIND RUSAGE_THREAD
+#endif
 
 using std::shared_ptr, std::unique_ptr, std::thread, std::string, std::to_string, std::make_unique, std::runtime_error,
     std::make_shared, std::list, std::size;
@@ -19,7 +29,6 @@ namespace kotlin_tracer {
 static thread_local int64_t current_coroutine_id = NOT_FOUND;
 
 shared_ptr<Profiler> Profiler::instance_;
-static std::atomic_long trace_counter(0);
 
 std::shared_ptr<Profiler> Profiler::getInstance() {
   return Profiler::instance_;
@@ -39,10 +48,16 @@ void Profiler::signal_action(__attribute__((unused)) int signo,
                              __attribute__((unused)) siginfo_t *siginfo,
                              void *ucontext) {
   if (!active_.test(std::memory_order_relaxed)) return;
-  trace_coroutine_id.load(std::memory_order_acquire);
-  async_trace_ptr_(trace_, 30, ucontext);
-  trace_coroutine_id.store(current_coroutine_id, std::memory_order_release);
-  trace_coroutine_id.notify_one();
+  auto id = trace_counter.fetch_add(1, std::memory_order_acquire);
+  auto trace = traces_->at(id);
+  unwind_stack(static_cast<ucontext_t *>(ucontext), jvm_, trace.get());
+  int64_t coroutine_id = current_coroutine_id;
+  if (current_coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
+  trace->coroutine_id = coroutine_id;
+  trace->ready.test_and_set(std::memory_order::release);
+  trace->ready.notify_one();
 }
 
 Profiler::Profiler(
@@ -54,7 +69,7 @@ Profiler::Profiler(
       storage_(),
       method_info_map_(),
       threshold_(threshold),
-      interval_(interval), output_path_(std::move(output_path)), trace_(nullptr) {
+      interval_(interval), output_path_(std::move(output_path)), traces_(nullptr) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
   this->async_trace_ptr_ = (AsyncGetCallTrace) dlsym(RTLD_DEFAULT, "AsyncGetCallTrace");
   struct sigaction action{};
@@ -72,41 +87,50 @@ Profiler::Profiler(
 }
 
 void Profiler::startProfiler() {
-  profiler_thread_ = std::make_unique<thread>([this] {
-    logDebug("[Kotlin-tracer] Profiler thread started");
-    jvm_->attachThread();
-    std::function<void(shared_ptr<ThreadInfo>)> lambda = [this](const shared_ptr<ThreadInfo> &thread) {
-      auto trace = std::make_shared<ASGCTCallTrace>(ASGCTCallTrace{});
-      trace->env_id = jvm_->getJNIEnv();
-      trace->frames = reinterpret_cast<ASGCTCallFrame *>(calloc(30, sizeof(ASGCTCallFrame)));
-      trace->num_frames = 0;
-      trace_ = trace.get();
-      trace_coroutine_id.store(0, std::memory_order_release);
-      pthread_kill(thread->id, SIGVTALRM);
-      trace_coroutine_id.wait(0, std::memory_order_acquire);
-      if (trace->num_frames > 0) {
-        getInstance()->storage_.addRawTrace(
-            currentTimeMs(),
-            trace,
-            pthread_self(),
-            trace_coroutine_id.load(std::memory_order_relaxed));
+  if (!active_.test_and_set(std::memory_order_relaxed)) {
+    profiler_thread_ = std::make_unique<thread>([this] {
+      logDebug("[Kotlin-tracer] Profiler thread started");
+      jvm_->attachThread();
+      std::function<void(shared_ptr<ThreadInfo>)> lambda = [this](const shared_ptr<ThreadInfo> &thread) {
+        if (thread->current_traces.load(std::memory_order::relaxed) > 0) {
+          auto array = make_unique<InstructionInfo[]>(30);
+          auto trace = std::make_shared<AsyncTrace>(std::move(array), 30, thread->id);
+          traces_->push_back(trace);
+          pthread_kill(thread->id, SIGVTALRM);
+        }
+      };
+      while (active_.test(std::memory_order_relaxed)) {
+        auto threads = jvm_->getThreads();
+        auto start = currentTimeNs();
+        traces_ = std::make_unique<ConcurrentVector<shared_ptr<AsyncTrace>>>();
+        trace_counter.store(0, std::memory_order_release);
+        threads->forEach(lambda);
+        std::function<void(shared_ptr<AsyncTrace>)> read_traces = [](const shared_ptr<AsyncTrace> &trace) {
+          if (trace != nullptr) {
+            trace->ready.wait(false, std::memory_order_acquire);
+            getInstance()->storage_.addRawTrace(
+                currentTimeNs(),
+                trace,
+                trace->thread_id,
+                trace->coroutine_id);
+          }
+        };
+        traces_->forEach(read_traces);
+
+        this->processTraces();
+        auto elapsed_time = currentTimeNs() - start;
+        auto sleep_time = interval_.count() - elapsed_time;
+        if (sleep_time > 0) {
+          std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_time));
+        } else {
+//          logDebug("sleep time:" + to_string(sleep_time));
+        }
       }
-    };
-    while (active_.test(std::memory_order_relaxed)) {
-      auto threads = jvm_->getThreads();
-      auto start = currentTimeNs();
-      threads->forEach(lambda);
-      this->processTraces();
-      auto elapsed_time = currentTimeNs() - start;
-      auto sleep_time = interval_.count() - elapsed_time;
-      if (sleep_time > 0) {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_time));
-      }
-    }
-    jvm_->dettachThread();
-    logDebug("end profile thread");
-  });
-  profiler_thread_->detach();
+      jvm_->dettachThread();
+      logDebug("end profile thread");
+    });
+    profiler_thread_->detach();
+  }
 }
 
 void Profiler::stop() {
@@ -128,13 +152,14 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   auto last_user_time = coroutine_info->last_rusage.ru_utime;
   auto last_voluntary_context_switch = coroutine_info->last_rusage.ru_nvcsw;
   auto last_involuntary_context_switch = coroutine_info->last_rusage.ru_nivcsw;
-  getrusage(RUSAGE_THREAD, &coroutine_info->last_rusage);
-  coroutine_info->cpu_system_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
-  coroutine_info->cpu_user_clock_running_time_us += calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
+  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
+  coroutine_info->cpu_system_clock_running_time_us +=
+      calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
+  coroutine_info->cpu_user_clock_running_time_us +=
+      calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
   coroutine_info->voluntary_switches += coroutine_info->last_rusage.ru_nvcsw - last_voluntary_context_switch;
   coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
 }
-
 
 void Profiler::traceStart() {
   auto coroutine_id = current_coroutine_id;
@@ -142,19 +167,19 @@ void Profiler::traceStart() {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     storage_.createCoroutineInfo(coroutine_id);
   }
-  auto charBuffer = make_unique<char[]>(100);
-  pthread_getname_np(pthread_self(), charBuffer.get(), 100);
+  jvm_->findThread(pthread_self())->current_traces.fetch_add(1, std::memory_order_relaxed);
   auto start = currentTimeNs();
   TraceInfo trace_info{coroutine_id, start, 0};
   storage_.createChildCoroutineStorage(coroutine_id);
   if (storage_.addOngoingTraceInfo(trace_info)) {
-    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
+//    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
   } else {
     throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
 }
 
 void Profiler::traceEnd(jlong coroutine_id) {
+  jvm_->findThread(pthread_self())->current_traces.fetch_sub(1, std::memory_order_relaxed);
   coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
   if (coroutine_id == -1) {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
@@ -170,7 +195,7 @@ void Profiler::traceEnd(jlong coroutine_id) {
                + to_string(elapsedTime));
   logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
-    plot(output_path_ + "/trace" + to_string(++trace_counter) + ".html", traceInfo, storage_);
+    plot(output_path_ + "/trace" + to_string(output_counter.fetch_add(1, std::memory_order_relaxed)) + ".html", traceInfo, storage_);
   }
 }
 
@@ -189,10 +214,11 @@ void Profiler::processTraces() {
     auto thread = jvm_->findThread(rawRecord->thread);
     if (thread == nullptr) logInfo("Cannot get thread: " + *thread->name);
     processedRecord->thread_name = thread->name;
+    processedRecord->time = rawRecord->time;
     shared_ptr<list<unique_ptr<StackFrame>>> methods = make_shared<list<unique_ptr<StackFrame>>>();
     for (int i = 0; i < rawRecord->trace_count; i++) {
-      ASGCTCallFrame frame = rawRecord->trace->frames[i];
-      methods->push_back(processMethodInfo(frame.method_id, frame.line_number));
+      auto instruction = rawRecord->trace->instructions[i];
+      methods->push_back(processProfilerMethodInfo(instruction));
     }
     processedRecord->stack_trace = std::move(methods);
     storage_.addProcessedTrace(rawRecord->coroutine_id, processedRecord);
@@ -230,10 +256,61 @@ unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint line
     }
     shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
     method_info_map_.insert(methodId, method);
-    return make_unique<StackFrame>(StackFrame{ method, lineno });
+    return make_unique<StackFrame>(StackFrame{method, lineno});
   } else {
     string line = to_string(lineno);
-    return make_unique<StackFrame>(StackFrame{ method_info_map_.get(methodId), lineno });
+    return make_unique<StackFrame>(StackFrame{method_info_map_.get(methodId), lineno});
+  }
+}
+
+unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo &instruction_info) {
+  Dl_info info{};
+  if (instruction_info.java_frame) {
+    auto jmethodId = reinterpret_cast<jmethodID>(instruction_info.instruction);
+    if (jmethodId != nullptr) {
+      if (!method_info_map_.contains(jmethodId)) {
+        auto jvmti = jvm_->getJvmTi();
+        char *pName;
+        char *pSignature;
+        char *pGeneric;
+
+        jvmtiError err = jvmti->GetMethodName(jmethodId, &pName, &pSignature, &pGeneric);
+        if (err != JVMTI_ERROR_NONE) {
+          printf("Error finding profiler method info: %d\n", err);
+        }
+        string name(pName);
+        string signature(pSignature);
+        jvmti->Deallocate((unsigned char *) pName);
+        jvmti->Deallocate((unsigned char *) pSignature);
+        jvmti->Deallocate((unsigned char *) pGeneric);
+        jclass klass;
+        char *pClassName;
+        err = jvmti->GetMethodDeclaringClass(jmethodId, &klass);
+        if (err != JVMTI_ERROR_NONE) {
+          logDebug("Error finding class: %d");
+        }
+        err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
+        string className(pClassName, strlen(pClassName) - 1);
+        jvmti->Deallocate((unsigned char *) pClassName);
+        if (err != JVMTI_ERROR_NONE) {
+          logDebug("Error finding class name: " + to_string(err));
+        }
+        shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
+        method_info_map_.insert(jmethodId, method);
+        return make_unique<StackFrame>(StackFrame{method, 0});
+      } else {
+        return make_unique<StackFrame>(StackFrame{method_info_map_.get(jmethodId), 0});
+      }
+    } else {
+      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown java"), 0});
+    }
+  } else {
+    if (dladdr(reinterpret_cast<void *>(instruction_info.instruction), &info)) {
+      return make_unique<StackFrame>(StackFrame{
+          make_shared<string>(string(info.dli_fname) + ":" + (info.dli_sname ? info.dli_sname : "")), 0});
+    } else {
+      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown native"), 0});
+    }
   }
 }
 
@@ -258,8 +335,8 @@ void Profiler::coroutineCreated(jlong coroutine_id) {
   auto parent_id = current_coroutine_id;
   pthread_t current_thread = pthread_self();
   auto thread_info = jvm_->findThread(current_thread);
-  logDebug("coroutineCreated tid: " + *thread_info->name + " cid: " + to_string(coroutine_id) +
-      " from parentId: " + to_string(current_coroutine_id) + '\n');
+//  logDebug("coroutineCreated tid: " + *thread_info->name + " cid: " + to_string(coroutine_id) +
+//      " from parentId: " + to_string(current_coroutine_id) + '\n');
   storage_.createCoroutineInfo(coroutine_id);
   if (storage_.containsChildCoroutineStorage(parent_id)) {
     storage_.addChildCoroutine(coroutine_id, parent_id);
@@ -290,7 +367,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
     }
     storage_.addSuspensionInfo(suspensionInfo);
   }
-  logDebug("coroutineSuspend " + to_string(coroutine_id) + '\n');
+//  logDebug("coroutineSuspend " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::coroutineResumed(jlong coroutine_id) {
@@ -302,14 +379,14 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
   if (suspensionInfo != nullptr) {
     suspensionInfo->end = currentTimeNs();
   }
-  logDebug("coroutine resumed tid: " + *thread_info->name + ", cid: " + to_string(coroutine_id) + '\n');
+//  logDebug("coroutine resumed tid: " + *thread_info->name + ", cid: " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   calculate_resource_usage(coroutine_info);
-  logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
+//  logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::gcStart() {
