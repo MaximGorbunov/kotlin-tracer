@@ -46,6 +46,7 @@ class Profiler {
   std::string output_path_;
   std::unique_ptr<ConcurrentVector<std::shared_ptr<AsyncTrace>>> traces_;
   std::atomic_int trace_counter{0};
+  std::atomic_int output_counter{0};
 
   Profiler(std::shared_ptr<JVM> jvm,
            std::chrono::nanoseconds threshold,

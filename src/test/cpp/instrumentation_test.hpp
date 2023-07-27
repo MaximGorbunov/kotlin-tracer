@@ -17,7 +17,7 @@ inline void checkExecutionTime(std::shared_ptr<std::filesystem::path> &t_temp_fi
     while (log) {
       getline(log, content);
       std::cout << content << std::endl;
-//      if (content.find("trace end:") != std::string::npos) {
+      if (content.find("trace end:") != std::string::npos) {
         auto timeStr = std::string("time: ");
         auto timePosition = content.find(timeStr);
         if (timePosition == std::string::npos) throw std::runtime_error("can't find time in log");
