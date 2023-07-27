@@ -29,7 +29,6 @@ namespace kotlin_tracer {
 static thread_local int64_t current_coroutine_id = NOT_FOUND;
 
 shared_ptr<Profiler> Profiler::instance_;
-static std::atomic_long trace_counter(0);
 
 std::shared_ptr<Profiler> Profiler::getInstance() {
   return Profiler::instance_;
