@@ -1,4 +1,6 @@
 #include <jvmti.h>
+#include <cstdint>
+#include <memory>
 
 #ifndef TRACE_H
 #define TRACE_H

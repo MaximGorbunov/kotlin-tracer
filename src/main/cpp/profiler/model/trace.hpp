@@ -20,8 +20,8 @@ typedef struct RawCallTraceRecord {
 } RawCallTraceRecord;
 
 typedef struct StackFrame {
-  std::shared_ptr<std::string> frame;
-  jint line_number;
+  std::string *frame;
+  std::string *base;
 } StackFrame;
 
 typedef struct ProcessedTraceRecord {

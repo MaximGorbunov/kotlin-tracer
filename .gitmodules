@@ -1,3 +1,6 @@
 [submodule "kotlin-tracer-java"]
 	path = kotlin-tracer-java
 	url = git@github.com:MaximGorbunov/kotlin-tracer-java.git
+[submodule "addr2Symbol"]
+	path = addr2Symbol
+	url = git@github.com:MaximGorbunov/addr2Symbol.git

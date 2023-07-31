@@ -11,6 +11,7 @@
 
 #include "concurrentCollections/concurrentList.h"
 #include "vmStructs.h"
+#include "jvmCodeCache.h"
 
 namespace kotlin_tracer {
 
@@ -39,14 +40,18 @@ class JVM {
   void dettachThread();
   static void initializeMethodIds(jvmtiEnv *jvmti_env, JNIEnv *jni_env);
   static void loadMethodsId(jvmtiEnv *jvmti_env, JNIEnv *jni_env, jclass klass);
-  jmethodID getCodeCache(uint64_t pointer, uint64_t fp);
+  bool isJavaFrame(uint64_t address);
+  jmethodID getJMethodId(uint64_t address, uint64_t frame_pointer);
+  const addr2Symbol::function_info *getNativeFunctionInfo(intptr_t address);
 
  private:
   std::shared_ptr<JavaVM> java_vm_;
   jvmtiEnv *jvmti_env_;
+  std::unique_ptr<JVMCodeCache> jvm_code_cache_;
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;
   std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Field>>>> vm_structs_;
   std::unordered_map<std::string, VMTypeEntry> types_;
+  addr2Symbol::Addr2Symbol addr_2_symbol_;
   void resolveVMStructs();
   void resolveVMTypes();
 };

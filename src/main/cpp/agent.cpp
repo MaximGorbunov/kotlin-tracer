@@ -63,7 +63,7 @@ void JNICALL VMInit(
                        "kotlin-tracer.jar",
                        agent->getJVM());
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
-  //Install coroutine debug probes
+  // Install coroutine debug probes
   auto debug_probes = jni_env->FindClass("kotlinx/coroutines/debug/DebugProbes");
   if (debug_probes == nullptr) {
     throw runtime_error("kotlinx/coroutines/debug/DebugProbes not found");
@@ -122,7 +122,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
     char *options,
     __attribute__((unused)) void *reserved
 ) {
-  if (!attached.test_and_set(std::memory_order::relaxed)) { // Initialize once
+  if (!attached.test_and_set(std::memory_order::relaxed)) {  // Initialize once
     if (options == nullptr || strlen(options) == 0) {
       throw runtime_error("method name required for interception!");
     }
@@ -146,7 +146,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
     callbacks->GarbageCollectionStart = GarbageCollectionStart;
     callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
     agent = make_unique<kotlin_tracer::Agent>(
-        std::shared_ptr<JavaVM>(java_vm,[](JavaVM *vm) {}),
+        std::shared_ptr<JavaVM>(java_vm, [](JavaVM *vm) {}),
         std::move(callbacks),
         std::move(profilerOptions));
   }

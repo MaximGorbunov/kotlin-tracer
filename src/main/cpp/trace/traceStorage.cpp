@@ -1,9 +1,9 @@
 #include "traceStorage.hpp"
 
+#include <sys/resource.h>
 #include <memory>
 #include <utility>
 #include <thread>
-#include <sys/resource.h>
 
 #include "../utils/log.h"
 
@@ -173,7 +173,10 @@ void TraceStorage::gcFinish() {
   gc_events_->push_back(gc_event);
 }
 
-void TraceStorage::findGcEvents(const TraceTime start, const TraceTime stop, const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
+void TraceStorage::findGcEvents(
+    const TraceTime start,
+    const TraceTime stop,
+    const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
   std::function<bool(shared_ptr<GCEvent>)> filter = [start, stop](const shared_ptr<GCEvent>& event) {
     return event->start >= start && event->end <= stop;
   };

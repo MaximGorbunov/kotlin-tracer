@@ -4,6 +4,7 @@
 #include <list>
 #include <atomic>
 #include <sstream>
+#include <utility>
 
 #include "log.h"
 
@@ -102,15 +103,20 @@ static void printTraceLevel(Level *level, std::ofstream &file, const std::string
 
 static std::atomic_int counter = 0;
 
-static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file, const string &parent, const TraceInfo &trace_info) {
+static void printTraces(
+    const TraceStorage::Traces &traces,
+    std::ofstream &file,
+    const string &parent,
+    const TraceInfo &trace_info) {
   unique_ptr<Level> root = std::make_unique<Level>(Level{});
 
-  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](const shared_ptr<ProcessedTraceRecord>& trace_record) {
+  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](
+      const shared_ptr<ProcessedTraceRecord> &trace_record) {
     Level *current_level = root.get();
     for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
       --frame;
       if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
-        auto method = std::make_unique<string>(*(*frame)->frame + std::to_string((*frame)->line_number));
+        auto method = std::make_unique<string>(*(*frame)->base + ":" + *(*frame)->frame);
         bool found = false;
         for (auto &trace_count : current_level->traces) {
           if (*trace_count.method == *method) {
@@ -121,7 +127,11 @@ static void printTraces(const TraceStorage::Traces &traces, std::ofstream &file,
         }
         if (!found) {
           auto next_level = std::make_unique<Level>(Level{});
-          current_level->traces.push_back(TraceCount{++counter, std::move(method), 1L, std::move(next_level)});
+          current_level->traces.push_back(TraceCount{
+            ++counter,
+            std::move(method),
+            1L,
+            std::move(next_level)});
           current_level = current_level->traces.back().next.get();
         }
       }
@@ -141,9 +151,9 @@ static void print_trace_info(const string &parent,
   auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(coroutine_info->wall_clock_running_time));
   auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds (coroutine_info->cpu_user_clock_running_time_us));
+      std::chrono::microseconds(coroutine_info->cpu_user_clock_running_time_us));
   auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds (coroutine_info->cpu_system_clock_running_time_us));
+      std::chrono::microseconds(coroutine_info->cpu_system_clock_running_time_us));
 
   file << "data[0].labels.push('" + coroutineName + "');\n";
   file << "data[0].parents.push('" + parent + "');\n";
@@ -177,7 +187,8 @@ static void print_trace_info(const string &parent,
 
   std::list<std::shared_ptr<SuspensionInfo>> chain;
   shared_ptr<SuspensionInfo> lastSuspensionInfo;
-  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint = [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
+  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint =
+      [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
         if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
           chain.push_front(suspension);
         } else {
@@ -195,9 +206,10 @@ static void print_trace_info(const string &parent,
       };
   coroutine_info->suspensions_list->forEach(suspensionPrint);
   if (storage.containsChildCoroutineStorage(coroutine_id)) {
-    std::function<void(jlong)> childCoroutinePrint = [&file, &coroutineName, &storage, &trace_info](jlong childCoroutine) {
-      print_trace_info(coroutineName, trace_info, childCoroutine, file, storage);
-    };
+    std::function<void(jlong)> childCoroutinePrint =
+        [&file, &coroutineName, &storage, &trace_info](jlong childCoroutine) {
+          print_trace_info(coroutineName, trace_info, childCoroutine, file, storage);
+        };
     auto children = storage.getChildCoroutines(coroutine_id);
     children->forEach(childCoroutinePrint);
   }
@@ -208,13 +220,14 @@ static void print_gc_info(const string &parent,
                           std::ofstream &file,
                           const TraceStorage &storage) {
   int gc_event_counter = 0;
-  std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each = [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent>& gc_event) {
-    auto gc_time = gc_event->end - gc_event->start;
-    auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time));
-    file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
-    file << "data[0].parents.push('" + parent + "');\n";
-    file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
-  };
+  std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each =
+      [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent> &gc_event) {
+        auto gc_time = gc_event->end - gc_event->start;
+        auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time));
+        file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
+        file << "data[0].parents.push('" + parent + "');\n";
+        file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+      };
   storage.findGcEvents(trace_info.start, trace_info.end, for_each);
 }
 

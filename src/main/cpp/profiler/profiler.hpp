@@ -40,6 +40,7 @@ class Profiler {
   AsyncGetCallTrace async_trace_ptr_;
   TraceStorage storage_;
   ConcurrentCleanableMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
+  ConcurrentCleanableMap<jmethodID , std::shared_ptr<std::string>> class_info_map_;
   std::atomic_flag active_;
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
@@ -54,9 +55,11 @@ class Profiler {
            std::chrono::nanoseconds interval);
   void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
   void processTraces();
-  std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId, jint lineno);
+  std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId);
   std::unique_ptr<StackFrame> processProfilerMethodInfo(const InstructionInfo &instruction_info);
-  static inline std::string tickToMessage(jint ticks);
+  std::string unknown_native = std::string("unknown_native");
+  std::string unknown_java = std::string("unknown_java");
+  std::string empty = std::string("");
 };
 }
 #endif // KOTLIN_TRACER_PROFILER_H

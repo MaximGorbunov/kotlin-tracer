@@ -106,4 +106,4 @@ TEST(ConcurrentListTest, TestEmptyNegative) {
   list.push_back(&first);
   EXPECT_EQ(false, list.empty());
 }
-}  //kotlin_tracer
+}  // namespace kotlin_tracer

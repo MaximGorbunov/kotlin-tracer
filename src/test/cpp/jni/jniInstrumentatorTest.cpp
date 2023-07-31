@@ -61,4 +61,4 @@ TEST(JNIInstrumentatorTest, TesttraceEnd) {
   }
   EXPECT_EQ("traceEnd", methodInvoked);
 }
-}  //kotlin_tracer
+}  // namespace kotlin_tracer

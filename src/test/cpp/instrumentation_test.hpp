@@ -36,12 +36,8 @@ inline void checkExecutionTime(std::shared_ptr<std::filesystem::path> &t_temp_fi
 inline std::shared_ptr<std::filesystem::path> runJVMTest(const std::string &t_intercept_method,
                                                          const std::string &t_test_name) {
   auto temp_file_path = std::make_shared<std::filesystem::path>(std::filesystem::temp_directory_path() / "test.txt");
-  setenv("LD_PRELOAD", LIBASAN_PATH.c_str(), 1);
   system((GRADLEW_PATH
       + " -p " + PROJECT_SOURCE_DIR
-#ifdef __APPLE__
-      + " -PdyldInsert=" + LIBASAN_PATH
-#endif
       + " -Pagent=" + AGENT_PATH
       + " -Pmethod=" + t_intercept_method + " test "
       + "--tests " + t_test_name
