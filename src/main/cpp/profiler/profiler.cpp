@@ -1,16 +1,16 @@
+#include "profiler.hpp"
+
 #include <dlfcn.h>
+#include <sys/resource.h>
 #include <memory>
 #include <utility>
 #include <cstring>
 #include <list>
 #include <string>
-#include <sys/resource.h>
-#include <cxxabi.h>
 
 #include "unwind/apple_aarch64.inline.hpp"
 #include "unwind/apple_x86_64.inline.hpp"
 #include "unwind/linux_x86_64.inline.hpp"
-#include "profiler.hpp"
 #include "trace/traceTime.hpp"
 #include "../utils/log.h"
 #include "../utils/suspensionPlot.hpp"
@@ -68,6 +68,7 @@ Profiler::Profiler(
     : jvm_(std::move(jvm)),
       storage_(),
       method_info_map_(),
+      class_info_map_(),
       threshold_(threshold),
       interval_(interval), output_path_(std::move(output_path)), traces_(nullptr) {
   auto libjvm_handle = dlopen("libjvm.so", RTLD_LAZY);
@@ -163,7 +164,7 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
 
 void Profiler::traceStart() {
   auto coroutine_id = current_coroutine_id;
-  if (coroutine_id == -1) { // non suspension function case
+  if (coroutine_id == -1) {  // non suspension function case
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     storage_.createCoroutineInfo(coroutine_id);
   }
@@ -195,7 +196,9 @@ void Profiler::traceEnd(jlong coroutine_id) {
                + to_string(elapsedTime));
   logDebug("threshold: " + to_string(threshold_.count()));
   if (elapsedTime > threshold_.count()) {
-    plot(output_path_ + "/trace" + to_string(output_counter.fetch_add(1, std::memory_order_relaxed)) + ".html", traceInfo, storage_);
+    plot(output_path_ + "/trace" + to_string(output_counter.fetch_add(1, std::memory_order_relaxed)) + ".html",
+         traceInfo,
+         storage_);
   }
 }
 
@@ -226,7 +229,7 @@ void Profiler::processTraces() {
   }
 }
 
-unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint lineno) {
+unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId) {
   if (!method_info_map_.contains(methodId)) {
     auto jvmti = jvm_->getJvmTi();
     char *pName;
@@ -242,29 +245,37 @@ unique_ptr<StackFrame> Profiler::processMethodInfo(jmethodID methodId, jint line
     jvmti->Deallocate((unsigned char *) pName);
     jvmti->Deallocate((unsigned char *) pSignature);
     jvmti->Deallocate((unsigned char *) pGeneric);
-    jclass klass;
-    char *pClassName;
-    err = jvmti->GetMethodDeclaringClass(methodId, &klass);
     if (err != JVMTI_ERROR_NONE) {
       logDebug("Error finding class: %d");
     }
-    err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
-    string className(pClassName, strlen(pClassName) - 1);
-    jvmti->Deallocate((unsigned char *) pClassName);
+    shared_ptr<string> className;
+    if (class_info_map_.contains(methodId)) {
+      className = class_info_map_.get(methodId);
+    } else {
+      jclass klass;
+      err = jvmti->GetMethodDeclaringClass(methodId, &klass);
+      if (err != JVMTI_ERROR_NONE) {
+        logError("Failed to get class info");
+      }
+      char *pClassName;
+      err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
+      className = make_shared<string>(pClassName, strlen(pClassName) - 1);
+      class_info_map_.insert(methodId, className);
+      jvmti->Deallocate((unsigned char *) pClassName);
+    }
     if (err != JVMTI_ERROR_NONE) {
       logDebug("Error finding class name: " + to_string(err));
     }
-    shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
+    shared_ptr<string> method = make_shared<string>(name + signature);
     method_info_map_.insert(methodId, method);
-    return make_unique<StackFrame>(StackFrame{method, lineno});
+    return make_unique<StackFrame>(StackFrame{method.get(), className.get()});
   } else {
-    string line = to_string(lineno);
-    return make_unique<StackFrame>(StackFrame{method_info_map_.get(methodId), lineno});
+    return make_unique<StackFrame>(StackFrame{method_info_map_.get(methodId).get(),
+                                              class_info_map_.get(methodId).get()});
   }
 }
 
 unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo &instruction_info) {
-  Dl_info info{};
   if (instruction_info.java_frame) {
     auto jmethodId = reinterpret_cast<jmethodID>(instruction_info.instruction);
     if (jmethodId != nullptr) {
@@ -283,51 +294,42 @@ unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo
         jvmti->Deallocate((unsigned char *) pName);
         jvmti->Deallocate((unsigned char *) pSignature);
         jvmti->Deallocate((unsigned char *) pGeneric);
-        jclass klass;
-        char *pClassName;
-        err = jvmti->GetMethodDeclaringClass(jmethodId, &klass);
-        if (err != JVMTI_ERROR_NONE) {
-          logDebug("Error finding class: %d");
+        shared_ptr<string> className;
+        if (class_info_map_.contains(jmethodId)) {
+          className = class_info_map_.get(jmethodId);
+        } else {
+          jclass klass;
+          err = jvmti->GetMethodDeclaringClass(jmethodId, &klass);
+          if (err != JVMTI_ERROR_NONE) {
+            logError("Failed to get class info");
+          }
+          char *pClassName;
+          err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
+          className = make_shared<string>(pClassName, strlen(pClassName) - 1);
+          class_info_map_.insert(jmethodId, className);
+          jvmti->Deallocate((unsigned char *) pClassName);
         }
-        err = jvmti->GetClassSignature(klass, &pClassName, nullptr);
-        string className(pClassName, strlen(pClassName) - 1);
-        jvmti->Deallocate((unsigned char *) pClassName);
         if (err != JVMTI_ERROR_NONE) {
           logDebug("Error finding class name: " + to_string(err));
         }
-        shared_ptr<string> method = make_shared<string>(className + '.' + name + signature);
+        shared_ptr<string> method = make_shared<string>(name + signature);
         method_info_map_.insert(jmethodId, method);
-        return make_unique<StackFrame>(StackFrame{method, 0});
+        return make_unique<StackFrame>(StackFrame{method.get(), className.get()});
       } else {
-        return make_unique<StackFrame>(StackFrame{method_info_map_.get(jmethodId), 0});
+        return make_unique<StackFrame>(StackFrame{method_info_map_.get(jmethodId).get(),
+                                                  class_info_map_.get(jmethodId).get()});
       }
     } else {
-      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown java"), 0});
+      return make_unique<StackFrame>(StackFrame{&unknown_java, &empty});
     }
   } else {
-    if (dladdr(reinterpret_cast<void *>(instruction_info.instruction), &info)) {
-      return make_unique<StackFrame>(StackFrame{
-          make_shared<string>(string(info.dli_fname) + ":" + (info.dli_sname ? info.dli_sname : "")), 0});
+    const auto function_info = jvm_->getNativeFunctionInfo(instruction_info.instruction);
+    if (function_info != nullptr) {
+      return make_unique<StackFrame>(StackFrame{const_cast<string *>(&function_info->name),
+                                                function_info->lib_name.get()});
     } else {
-      return make_unique<StackFrame>(StackFrame{make_shared<string>("unknown native"), 0});
+      return make_unique<StackFrame>(StackFrame{&unknown_native, &empty});
     }
-  }
-}
-
-std::string Profiler::tickToMessage(jint ticks) {
-  switch (ticks) {
-    case 0 :return "ticks_no_Java_frame";
-    case -1 :return "ticks_no_class_load";
-    case -2 :return "ticks_GC_active";
-    case -3 :return "ticks_unknown_not_Java";
-    case -4 :return "ticks_not_walkable_not_Java";
-    case -5 :return "ticks_unknown_Java";
-    case -6 :return "ticks_not_walkable_Java";
-    case -7 :return "ticks_unknown_state";
-    case -8 :return "ticks_thread_exit";
-    case -9 :return "ticks_deopt";
-    case -10 :return "ticks_safepoint";
-    default :return "unknown_error";
   }
 }
 
@@ -363,7 +365,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
                                                                      make_unique<list<std::unique_ptr<StackFrame>>>()});
     for (int i = 0; i < framesCount; ++i) {
       suspensionInfo->suspension_stack_trace->push_back(
-          processMethodInfo(frames[i].method, (jint) frames[i].location));
+          processMethodInfo(frames[i].method));
     }
     storage_.addSuspensionInfo(suspensionInfo);
   }

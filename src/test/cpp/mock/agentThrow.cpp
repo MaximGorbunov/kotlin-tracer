@@ -19,4 +19,4 @@ void traceStart() {
 void traceEnd(jlong coroutine_id) {
   throw std::runtime_error("traceEnd");
 }
-}
+}  // namespace kotlin_tracer

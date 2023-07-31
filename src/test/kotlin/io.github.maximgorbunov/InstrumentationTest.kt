@@ -48,12 +48,4 @@ class InstrumentationTest {
     suspend fun suspendWithoutTable() {
         delay(100);
     }
-
-    companion object {
-        @JvmStatic
-        @BeforeAll
-        fun setUp() {
-            DebugProbes.install()
-        }
-      }
 }

@@ -15,6 +15,9 @@ Make sure you have JAVA_HOME exported as environment variable
 git clone git@github.com:MaximGorbunov/kotlin-tracer.git
 cd kotlin-tracer
 git submodule update --init --remote kotlin-tracer-java
+git submodule update --init --remote addr2Symbol
+cd addr2Symbol && mkdir release && cd release && -DCMAKE_BUILD_TYPE=Release ..
+cd ../..
 mkdir release && cd release
 cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
@@ -24,6 +27,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 #### Build JVMTI agent
 ```bash
+cd addr2Symbol && cmake --build release --target addr2Symbol & cd.. 
 cmake --build release --target agent
 ```
 #### Agents path:
@@ -35,6 +39,7 @@ JVMTI agent: release/agent/libagent.so for Linux or release/agent/libagent.dylib
 In order to use kotlin-tracer agent you have to set JVM options:
 1. Add ```-Dkotlinx.coroutines.debug``` to enable kotlin coroutine debug
 2. Add ```-agentpath:/path/to/libagent.so(dylib)=<replace it with options>```
+3. Add ```-agentpath:/path/to/libagent.so(dylib)=<replace it with options>```
 #### Options
 #### Sampling period in nanoseconds:
 ```text 

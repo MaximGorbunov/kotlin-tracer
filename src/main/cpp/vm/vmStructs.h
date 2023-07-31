@@ -5,6 +5,11 @@
 #include <unordered_map>
 #include <memory>
 
+#include "addr2Symbol.hpp"
+
+namespace kotlin_tracer {
+void init(addr2Symbol::Addr2Symbol *addr_2_symbol);
+
 //VM Structs
 extern char *gHotSpotVMStructs;
 extern uint64_t gHotSpotVMStructEntryTypeNameOffset;
@@ -31,7 +36,6 @@ extern uint64_t gHotSpotVMIntConstantEntryNameOffset;
 extern uint64_t gHotSpotVMIntConstantEntryValueOffset;
 extern uint64_t gHotSpotVMIntConstantEntryArrayStride;
 
-
 //VM Long constants
 extern char *gHotSpotVMLongConstants;
 extern uint64_t gHotSpotVMLongConstantEntryNameOffset;
@@ -55,4 +59,5 @@ typedef struct {
   uint64_t size;                   // Size, in bytes, of the type
   std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Field>>> fields;
 } VMTypeEntry;
+} // kotlin_tracer
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_VM_VMSTRUCTS_H_

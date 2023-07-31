@@ -3,7 +3,6 @@
 #if defined(__APPLE__) && defined(__aarch64__)
 
 #define UNW_LOCAL_ONLY
-#include <libunwind.h>
 #include <string>
 #include <ptrauth.h>
 
@@ -28,18 +27,17 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
   ip = ucontext->REGISTER(pc);
   fp = ucontext->REGISTER(fp);
   lr = ucontext->REGISTER(lr);
-  Dl_info info{};
   int trace_index = 0;
   bool processed = false;
   do {
     processed = false;
-    if (dladdr(reinterpret_cast<void *>(ip), &info)) {
+    if (!jvm->isJavaFrame(ip)) {
       trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
       trace->instructions[trace_index].frame = fp;
       trace->instructions[trace_index].java_frame = false;
       processed = true;
     } else {
-      auto jmethodId = jvm->getCodeCache(ip, fp);
+      auto jmethodId = jvm->getJMethodId(ip, fp);
       trace->instructions[trace_index].instruction = reinterpret_cast<intptr_t>(jmethodId);
       trace->instructions[trace_index].frame = 0;
       trace->instructions[trace_index].java_frame = true;

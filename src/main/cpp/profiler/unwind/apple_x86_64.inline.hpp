@@ -72,7 +72,7 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
       trace->instructions[trace_index].java_frame = false;
       processed = true;
     } else {
-      auto jmethodId = jvm->getCodeCache(ip, rbp);
+      auto jmethodId = jvm->getJMethodId(ip, rbp);
       trace->instructions[trace_index].instruction = reinterpret_cast<intptr_t>(jmethodId);
       trace->instructions[trace_index].frame = 0;
       trace->instructions[trace_index].java_frame = true;

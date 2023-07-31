@@ -12,4 +12,4 @@ TEST(ConcurrentVectorTest, InsertAndGet) {
   EXPECT_EQ(first, *vector.at(0));
 }
 
-}  //kotlin_tracer
+}  // namespace kotlin_tracer

@@ -1,6 +1,4 @@
-add_compile_options("-fno-omit-frame-pointer;-fsanitize=address;-fsanitize=undefined;-DDEBUG>")
-
-add_link_options("-fsanitize=address;-fsanitize=undefined")
+add_compile_options("-DDEBUG>")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -29,8 +27,11 @@ execute_process(COMMAND ${CMAKE_C_COMPILER} -print-file-name=${ASAN_NAME}
 file(GLOB_RECURSE MOCK_SOURCES_CPP cpp/mock/*.cpp)
 
 string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)
+include_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/src/main/)
 include_directories($ENV{JAVA_HOME}/include/${OS}/)
 include_directories($ENV{JAVA_HOME}/include/)
+link_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/release/build/)
+link_libraries(addr2Symbol)
 
 configure_file(cpp/utils/config.h.in ${CMAKE_BINARY_DIR}/generated/config.h)
 

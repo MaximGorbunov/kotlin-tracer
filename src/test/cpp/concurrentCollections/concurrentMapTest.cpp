@@ -98,4 +98,4 @@ TEST(ConcurrentMapTest, TestClean) {
   EXPECT_TRUE(map.empty());
   EXPECT_TRUE(map.cleanListEmpty());
 }
-}  //kotlin_tracer
+}  // namespace kotlin_tracer

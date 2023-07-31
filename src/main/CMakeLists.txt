@@ -9,8 +9,8 @@ if (NOT APPLE)
     link_libraries("unwind")
 endif(NOT APPLE)
 
-link_directories($ENV{JAVA_HOME}/lib/server/)
-link_libraries(jvm)
+link_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/release/build/)
+link_libraries(addr2Symbol)
 
 add_link_options(
         "$<$<BOOL:$ENV{THREAD_SANITIZER}>:-fsanitize=thread;-fsanitize=undefined;>"
@@ -18,6 +18,7 @@ add_link_options(
 )
 
 string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)
+include_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/src/main/)
 include_directories($ENV{JAVA_HOME}/include/${OS}/)
 include_directories($ENV{JAVA_HOME}/include/)
 
