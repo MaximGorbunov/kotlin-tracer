@@ -54,7 +54,9 @@ threshold=10
 jarPath=./kotlin-tracer/build/libs/kotlin-tracer.jar,
 ```
 #### Icicle graph output path
+```text
 outputPath=/tmp
+```
 
 #### Complete example
 ```text
