@@ -16,7 +16,7 @@ git clone git@github.com:MaximGorbunov/kotlin-tracer.git
 cd kotlin-tracer
 git submodule update --init --remote kotlin-tracer-java
 git submodule update --init --remote addr2Symbol
-cd addr2Symbol && mkdir release && cd release && -DCMAKE_BUILD_TYPE=Release ..
+cd addr2Symbol && mkdir release && cd release && cmake -DCMAKE_BUILD_TYPE=Release ..
 cd ../..
 mkdir release && cd release
 cmake -DCMAKE_BUILD_TYPE=Release ..
@@ -27,7 +27,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 ```
 #### Build JVMTI agent
 ```bash
-cd addr2Symbol && cmake --build release --target addr2Symbol & cd.. 
+cd addr2Symbol && cmake --build release --target addr2Symbol && cd .. 
 cmake --build release --target agent
 ```
 #### Agents path:

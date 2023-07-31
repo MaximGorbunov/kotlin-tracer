@@ -2,7 +2,6 @@
 #define KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_APPLE_AARCH64_INLINE_H_
 #if defined(__APPLE__) && defined(__aarch64__)
 
-#define UNW_LOCAL_ONLY
 #include <string>
 #include <ptrauth.h>
 

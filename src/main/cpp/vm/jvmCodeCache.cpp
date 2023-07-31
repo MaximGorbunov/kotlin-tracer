@@ -3,21 +3,21 @@
 #include <string>
 
 namespace kotlin_tracer {
-bool JVMCodeCache::isJavaFrame(uint64_t address) {
+bool JVMCodeCache::isJavaFrame(uint64_t instruction_pointer) {
   auto len = *heaps_length;
   for (int i = 0; i < len; ++i) {
     auto heap_ptr = heaps_data[i];
     auto memory_ptr = heap_ptr + memoryField->offset;
     auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
     auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
-    if (low <= address && address < high) {
+    if (low <= instruction_pointer && instruction_pointer < high) {
       return true;
     }
   }
   return false;
 }
 
-jmethodID JVMCodeCache::getJMethodId(uint64_t address, uint64_t frame_pointer) {
+jmethodID JVMCodeCache::getJMethodId(uint64_t instruction_pointer, uint64_t frame_pointer) {
   auto len = *heaps_length;
   for (int i = 0; i < len; ++i) {
     auto heap_ptr = heaps_data[i];
@@ -26,9 +26,9 @@ jmethodID JVMCodeCache::getJMethodId(uint64_t address, uint64_t frame_pointer) {
     auto _log2_segment_size = *reinterpret_cast<int *>(heap_ptr + log2SegmentSizeField->offset);
     auto low = *reinterpret_cast<uint64_t *>(memory_ptr + lowField->offset);
     auto high = *reinterpret_cast<uint64_t *>(memory_ptr + highField->offset);
-    if (low <= address && address < high) {
-      auto seg_map = *reinterpret_cast<::kotlin_tracer::address *>(segmap_ptr + lowField->offset);
-      size_t seg_idx = (address - low) >> _log2_segment_size;
+    if (low <= instruction_pointer && instruction_pointer < high) {
+      auto seg_map = *reinterpret_cast<address *>(segmap_ptr + lowField->offset);
+      size_t seg_idx = (instruction_pointer - low) >> _log2_segment_size;
 
       // Iterate the segment map chain to find the start of the block.
       while (seg_map[seg_idx] > 0) {

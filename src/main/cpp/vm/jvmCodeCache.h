@@ -6,9 +6,6 @@
 #include <jvmti.h>
 
 namespace kotlin_tracer {
-typedef unsigned char *address;
-typedef unsigned short u2;
-
 class JVMCodeCache {
  public:
   explicit JVMCodeCache(const std::unordered_map<std::string, VMTypeEntry> &types) {
@@ -42,10 +39,12 @@ class JVMCodeCache {
     heap_block_type_size = getIfContains(types, "HeapBlock").size;
   }
 
-  bool isJavaFrame(uint64_t address);
-  jmethodID getJMethodId(uint64_t address, uint64_t frame_pointer);
+  bool isJavaFrame(uint64_t instruction_pointer);
+  jmethodID getJMethodId(uint64_t instruction_pointer, uint64_t frame_pointer);
 
  private:
+  typedef unsigned char *address;
+  typedef unsigned short u2;
   std::shared_ptr<Field> compiledMethodFiled;
   std::shared_ptr<Field> constMethodField;
   std::shared_ptr<Field> constantsField;
