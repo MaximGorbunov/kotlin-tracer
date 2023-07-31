@@ -55,7 +55,7 @@ Syntax: package/name/ClassName.methodName
 ```text
 method=io/test/Example.method
 ```
-#### Threshold for plotting icicle graph of trace
+#### Threshold for plotting icicle graph of trace in milliseconds
 ```text
 threshold=10
 ```
