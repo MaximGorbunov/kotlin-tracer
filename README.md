@@ -6,6 +6,10 @@ It's tracing agent that gathers information about method execution when trace ex
 3. Garbage collector events during trace
 4. Kotlin's suspension points during trace and time elapsed inside them
 
+### OS supported
+1. MacOS
+2. Linux
+3. 
 ## How to 
 
 ### Build
