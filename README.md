@@ -37,9 +37,10 @@ JVMTI agent: release/agent/libagent.so for Linux or release/agent/libagent.dylib
 
 ### Run
 In order to use kotlin-tracer agent you have to set JVM options:
-1. Add ```-Dkotlinx.coroutines.debug``` to enable kotlin coroutine debug
-2. Add ```-agentpath:/path/to/libagent.so(dylib)=<replace it with options>```
+1. For MacOS it's required to add `-XX:+PreserveFramePointer`. Stack walking process relies on frame pointer
+2. Add ```-Dkotlinx.coroutines.debug``` to enable kotlin coroutine debug
 3. Add ```-agentpath:/path/to/libagent.so(dylib)=<replace it with options>```
+4. Add ```-agentpath:/path/to/libagent.so(dylib)=<replace it with options>```
 #### Options
 #### Sampling period in nanoseconds:
 ```text 
