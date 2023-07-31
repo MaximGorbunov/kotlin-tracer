@@ -123,7 +123,7 @@ void Profiler::startProfiler() {
         if (sleep_time > 0) {
           std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_time));
         } else {
-//          logDebug("sleep time:" + to_string(sleep_time));
+          logDebug("sleep time:" + to_string(sleep_time));
         }
       }
       jvm_->dettachThread();
@@ -172,7 +172,7 @@ void Profiler::traceStart() {
   TraceInfo trace_info{coroutine_id, start, 0};
   storage_.createChildCoroutineStorage(coroutine_id);
   if (storage_.addOngoingTraceInfo(trace_info)) {
-//    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
+    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
   } else {
     throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
@@ -335,8 +335,8 @@ void Profiler::coroutineCreated(jlong coroutine_id) {
   auto parent_id = current_coroutine_id;
   pthread_t current_thread = pthread_self();
   auto thread_info = jvm_->findThread(current_thread);
-//  logDebug("coroutineCreated tid: " + *thread_info->name + " cid: " + to_string(coroutine_id) +
-//      " from parentId: " + to_string(current_coroutine_id) + '\n');
+  logDebug("coroutineCreated tid: " + *thread_info->name + " cid: " + to_string(coroutine_id) +
+      " from parentId: " + to_string(current_coroutine_id) + '\n');
   storage_.createCoroutineInfo(coroutine_id);
   if (storage_.containsChildCoroutineStorage(parent_id)) {
     storage_.addChildCoroutine(coroutine_id, parent_id);
@@ -367,7 +367,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
     }
     storage_.addSuspensionInfo(suspensionInfo);
   }
-//  logDebug("coroutineSuspend " + to_string(coroutine_id) + '\n');
+  logDebug("coroutineSuspend " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::coroutineResumed(jlong coroutine_id) {
@@ -379,14 +379,14 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
   if (suspensionInfo != nullptr) {
     suspensionInfo->end = currentTimeNs();
   }
-//  logDebug("coroutine resumed tid: " + *thread_info->name + ", cid: " + to_string(coroutine_id) + '\n');
+  logDebug("coroutine resumed tid: " + *thread_info->name + ", cid: " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   calculate_resource_usage(coroutine_info);
-//  logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
+  logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
 
 void Profiler::gcStart() {

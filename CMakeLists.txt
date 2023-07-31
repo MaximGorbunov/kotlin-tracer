@@ -9,7 +9,6 @@ if (NOT DEFINED ENV{JAVA_HOME})
     message(FATAL_ERROR "JAVA_HOME is required to be set")
 endif()
 
-message($ENV{JAVA_HOME}/lib/server/)
 link_directories($ENV{JAVA_HOME}/lib/server/)
 link_libraries(jvm)
 

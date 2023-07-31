@@ -34,7 +34,6 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
   do {
     processed = false;
     if (dladdr(reinterpret_cast<void *>(ip), &info)) {
-      logDebug("HERE N: " + string(info.dli_fname) + ": " + info.dli_sname);
       trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
       trace->instructions[trace_index].frame = fp;
       trace->instructions[trace_index].java_frame = false;

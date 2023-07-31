@@ -48,7 +48,7 @@ void JVM::addCurrentThread(::jthread thread) {
   pthread_t currentThread = pthread_self();
   jvmtiThreadInfo info{};
   auto err = jvmti_env_->GetThreadInfo(thread, &info);
-//  logDebug("Added thread: " + std::string(info.name));
+  logDebug("Added thread: " + std::string(info.name));
   if (err != JVMTI_ERROR_NONE) {
     logError("Failed to get thead info:" + std::to_string(err));
     return;

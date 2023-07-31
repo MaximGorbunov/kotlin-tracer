@@ -67,7 +67,6 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
   do {
     processed = false;
     if (dladdr(reinterpret_cast<void *>(ip), &info)) {
-      logDebug(string(buf));
       trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
       trace->instructions[trace_index].frame = rbp;
       trace->instructions[trace_index].java_frame = false;

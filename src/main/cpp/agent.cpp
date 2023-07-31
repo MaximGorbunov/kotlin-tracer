@@ -10,8 +10,8 @@
 #include "agent.hpp"
 
 using std::function, std::shared_mutex, std::shared_ptr, std::unique_ptr,
-    std::make_unique, std::lock_guard, std::string,
-    std::to_string, std::runtime_error;
+      std::make_unique, std::lock_guard, std::string, std::to_string,
+      std::runtime_error;
 
 typedef std::shared_lock<std::shared_mutex> read_lock;
 typedef std::unique_lock<std::shared_mutex> write_lock;
@@ -146,8 +146,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
     callbacks->GarbageCollectionStart = GarbageCollectionStart;
     callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
     agent = make_unique<kotlin_tracer::Agent>(
-        std::shared_ptr<JavaVM>(java_vm,
-                                [](JavaVM *vm) {}),
+        std::shared_ptr<JavaVM>(java_vm,[](JavaVM *vm) {}),
         std::move(callbacks),
         std::move(profilerOptions));
   }
