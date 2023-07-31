@@ -9,7 +9,7 @@ It's tracing agent that gathers information about method execution when trace ex
 ### OS supported
 1. MacOS
 2. Linux
-3. 
+
 ## How to 
 
 ### Build
