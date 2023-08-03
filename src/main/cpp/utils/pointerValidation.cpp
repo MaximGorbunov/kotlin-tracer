@@ -1,9 +1,9 @@
 #include "pointerValidation.h"
 
+#if defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 
-#if defined(__APPLE__)
 bool is_valid(uint64_t address_ptr) {
   if (address_ptr == 0) return false;
   vm_map_t task = mach_task_self();
@@ -17,11 +17,15 @@ bool is_valid(uint64_t address_ptr) {
   return (static_cast<mach_vm_address_t>(address_ptr)) >= address && ((info.protection & VM_PROT_READ) == VM_PROT_READ);
 }
 #elif defined(__linux__)
+#include <cstddef>
+#include <csignal>
+#include <sys/mman.h>
+
 bool is_valid(uint64_t address_ptr) {
   /* get the page size */
   size_t page_size = sysconf(_SC_PAGESIZE);
   /* find the address of the page that contains p */
-  void *base = (void *)((((size_t)p) / page_size) * page_size);
+  void *base = (void *)((((size_t)address_ptr) / page_size) * page_size);
   /* call msync, if it returns non-zero, return false */
   return msync(base, page_size, MS_ASYNC) == 0;
 }
