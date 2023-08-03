@@ -162,9 +162,9 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
 }
 
-void Profiler::traceStart() {
+void Profiler::traceStart(jboolean suspendFunction) {
   auto coroutine_id = current_coroutine_id;
-  if (coroutine_id == -1) {  // non suspension function case
+  if (!suspendFunction) {  // non suspension function case
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     storage_.createCoroutineInfo(coroutine_id);
   }
@@ -184,9 +184,12 @@ void Profiler::traceEnd(jlong coroutine_id) {
   coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
   if (coroutine_id == -1) {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
-    auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
-    calculate_resource_usage(coroutine_info);
   }
+  auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  if (coroutine_info == nullptr) {
+    logDebug("Found nullptr for c: " + to_string(coroutine_id));
+  }
+  calculate_resource_usage(coroutine_info);
   auto finish = currentTimeNs();
   auto traceInfo = findOngoingTrace(coroutine_id);
   traceInfo.end = finish;
@@ -350,6 +353,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
 
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  if (coroutine_info == nullptr) return;
   if (coroutine_info->last_resume > 0) {
     calculate_resource_usage(coroutine_info);
     coroutine_info->last_resume = 0;  // To not count multiple times chain
@@ -376,7 +380,9 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
   pthread_t current_thread = pthread_self();
   auto thread_info = jvm_->findThread(current_thread);
   current_coroutine_id = coroutine_id;
-  storage_.getCoroutineInfo(coroutine_id)->last_resume = currentTimeNs();
+  auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  if (coroutine_info == nullptr) return;
+  coroutine_info->last_resume = currentTimeNs();
   auto suspensionInfo = storage_.getLastSuspensionInfo(coroutine_id);
   if (suspensionInfo != nullptr) {
     suspensionInfo->end = currentTimeNs();
@@ -387,6 +393,7 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
+  if (coroutine_info == nullptr) return;
   calculate_resource_usage(coroutine_info);
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }

@@ -45,7 +45,7 @@ JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_coroutineSuspend(JNI
  * Signature: (J)V
  */
 [[maybe_unused]]
-JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass);
+JNIEXPORT void JNICALL Java_io_inst_CoroutineInstrumentator_traceStart(JNIEnv *, jclass, jboolean);
 
 /*
  * Class:     io_inst_CoroutineInstrumentator

@@ -1,6 +1,7 @@
 #include "jvmCodeCache.h"
 
 #include <string>
+#include "../utils/pointerValidation.h"
 
 namespace kotlin_tracer {
 bool JVMCodeCache::isJavaFrame(uint64_t instruction_pointer) {
@@ -45,10 +46,15 @@ jmethodID JVMCodeCache::getJMethodId(uint64_t instruction_pointer, uint64_t fram
       if (codeBlobNameStr == "Interpreter") {
         auto *fp_ptr = reinterpret_cast<intptr_t *>(frame_pointer);
         intptr_t method_ptr = fp_ptr[-3];
+        if (method_ptr == 0) return nullptr;
         auto constMethod_ptr = *reinterpret_cast<uint64_t *>(method_ptr + constMethodField->offset);
-        auto idnum = *reinterpret_cast<u2 *>(constMethod_ptr + methodIdNumField->offset);
+        auto idnum_ptr_offset = constMethod_ptr + methodIdNumField->offset;
+        if (!is_valid(idnum_ptr_offset)) return nullptr;
+        auto idnum = *reinterpret_cast<u2 *>(idnum_ptr_offset);
         auto constantPool_ptr = *reinterpret_cast<uint64_t *>(constMethod_ptr + constantsField->offset);
-        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(constantPool_ptr + poolHolderField->offset);
+        uint64_t poolHandler_ptr_offset = constantPool_ptr + poolHolderField->offset;
+        if (!is_valid(poolHandler_ptr_offset)) return nullptr;
+        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(poolHandler_ptr_offset);
         std::atomic_thread_fence(std::memory_order_acquire);
         auto jmethodIds = *reinterpret_cast<jmethodID **>(poolHolder_ptr + jmethodIdsField->offset);
         jmethodID id = nullptr;

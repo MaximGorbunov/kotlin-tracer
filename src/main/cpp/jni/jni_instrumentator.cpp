@@ -52,8 +52,8 @@ Java_io_inst_CoroutineInstrumentator_coroutineSuspend(
 [[maybe_unused]] JNIEXPORT void JNICALL
 Java_io_inst_CoroutineInstrumentator_traceStart(
     JNIEnv *,
-    __attribute__((unused)) jclass clazz) {
-  traceStart();
+    __attribute__((unused)) jclass clazz, jboolean suspendFunction) {
+  traceStart(suspendFunction);
 }
 
 [[maybe_unused]] JNIEXPORT void JNICALL

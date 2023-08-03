@@ -40,7 +40,7 @@ void coroutineCreated(jlong coroutine_id);
 void coroutineResumed(jlong coroutine_id);
 void coroutineSuspended(jlong coroutine_id);
 void coroutineCompleted(jlong coroutine_id);
-void traceStart();
+void traceStart(jboolean suspendFunction);
 void traceEnd(jlong coroutine_id);
 }
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_AGENT_HPP_

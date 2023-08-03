@@ -45,7 +45,7 @@ TEST(JNIInstrumentatorTest, TestcoroutineCompleted) {
 TEST(JNIInstrumentatorTest, TesttraceStart) {
   std::string methodInvoked;
   try {
-    Java_io_inst_CoroutineInstrumentator_traceStart(nullptr, nullptr);
+    Java_io_inst_CoroutineInstrumentator_traceStart(nullptr, nullptr, false);
   } catch (std::runtime_error &error) {
     methodInvoked = std::string(error.what());
   }
