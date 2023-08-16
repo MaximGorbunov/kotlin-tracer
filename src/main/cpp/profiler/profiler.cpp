@@ -162,7 +162,27 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
 }
 
+enum DispatchType {
+  UNKNOWN,
+  NORMAL,
+  UNDISPATCHED
+};
+static DispatchType dispatch_type = UNKNOWN;
+static jlong last_created_coroutine_id;
+static jlong last_created_coroutine_undispatched = false;
+
 void Profiler::traceStart(jboolean suspendFunction) {
+  if (dispatch_type == UNKNOWN) {
+    if (last_created_coroutine_undispatched) {
+      dispatch_type = UNDISPATCHED;
+    } else {
+      dispatch_type = NORMAL;
+    }
+  }
+  logDebug("Dispatch type:" + to_string(dispatch_type));
+  if (dispatch_type == UNDISPATCHED) {
+    coroutineResumed(last_created_coroutine_id);
+  }
   auto coroutine_id = current_coroutine_id;
   if (!suspendFunction) {  // non suspension function case
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
@@ -337,6 +357,25 @@ unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo
 }
 
 void Profiler::coroutineCreated(jlong coroutine_id) {
+  if (dispatch_type == UNKNOWN) {
+    last_created_coroutine_id = coroutine_id;
+    ::jthread thread;
+    auto *jvm_ti = jvm_->getJvmTi();
+    int count = 10;
+    jvmtiFrameInfo frames[10];
+    jvm_ti->GetCurrentThread(&thread);
+    jvm_ti->GetStackTrace(thread, 1, 10, frames, &count);
+    for (const auto &item : frames) {
+      char *name, *signature, *generic;
+      jvm_ti->GetMethodName(item.method, &name, &signature, &generic);
+      if (strcmp("startCoroutineUndispatched", name) == 0) {
+        last_created_coroutine_undispatched = true;
+      }
+      jvm_ti->Deallocate(reinterpret_cast<unsigned char*>(name));
+      jvm_ti->Deallocate(reinterpret_cast<unsigned char*>(signature));
+      jvm_ti->Deallocate(reinterpret_cast<unsigned char*>(generic));
+    }
+  }
   auto parent_id = current_coroutine_id;
   pthread_t current_thread = pthread_self();
   auto thread_info = jvm_->findThread(current_thread);
