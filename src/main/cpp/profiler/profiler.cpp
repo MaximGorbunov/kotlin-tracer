@@ -359,6 +359,7 @@ unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo
 void Profiler::coroutineCreated(jlong coroutine_id) {
   if (dispatch_type == UNKNOWN) {
     last_created_coroutine_id = coroutine_id;
+    last_created_coroutine_undispatched = false;
     ::jthread thread;
     auto *jvm_ti = jvm_->getJvmTi();
     int traces_size = 10;
