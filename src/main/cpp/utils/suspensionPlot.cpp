@@ -147,6 +147,10 @@ static void print_trace_info(const string &parent,
                              std::ofstream &file,
                              const TraceStorage &storage) {
   auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
+  if (coroutine_info == nullptr) {
+    logDebug("Coroutine:" + std::to_string(coroutine_id) + "not found");
+    throw std::runtime_error("Coroutine:" + std::to_string(coroutine_id) + "not found");
+  }
   auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
   auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::nanoseconds(coroutine_info->wall_clock_running_time));

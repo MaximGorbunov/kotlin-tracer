@@ -60,7 +60,7 @@ threshold=10
 ```
 #### Java instrumentation agent
 ```text
-jarPath=./kotlin-tracer/build/libs/kotlin-tracer.jar,
+jarPath=./kotlin-tracer-java/build/libs/kotlin-tracer-java.jar,
 ```
 #### Icicle graph output path
 ```text
@@ -69,5 +69,5 @@ outputPath=/tmp
 
 #### Complete example
 ```text
--agentpath:./libagent.so=period=1000000,method=io/test/Example.method,threshold=10,jarPath=./kotlin-tracer/build/libs/kotlin-tracer.jar,outputPath=/tmp
+-agentpath:./libagent.so=period=1000000,method=io/test/Example.method,threshold=10,jarPath=./kotlin-tracer-java/build/libs/kotlin-tracer-java.jar,outputPath=/tmp
 ```

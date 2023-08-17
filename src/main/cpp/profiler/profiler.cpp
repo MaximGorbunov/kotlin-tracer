@@ -162,9 +162,9 @@ static inline void calculate_resource_usage(const shared_ptr<TraceStorage::Corou
   coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw - last_involuntary_context_switch;
 }
 
-void Profiler::traceStart(jboolean suspendFunction) {
-  auto coroutine_id = current_coroutine_id;
-  if (!suspendFunction) {  // non suspension function case
+void Profiler::traceStart(jlong coroutine_id) {
+  logDebug("coroutine:" + to_string(coroutine_id));
+  if (coroutine_id == -2) {  // non suspension function case
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     storage_.createCoroutineInfo(coroutine_id);
   }
@@ -181,8 +181,7 @@ void Profiler::traceStart(jboolean suspendFunction) {
 
 void Profiler::traceEnd(jlong coroutine_id) {
   jvm_->findThread(pthread_self())->current_traces.fetch_sub(1, std::memory_order_relaxed);
-  coroutine_id = coroutine_id == -2 ? current_coroutine_id : coroutine_id;
-  if (coroutine_id == -1) {
+  if (coroutine_id == -2) {
     coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
   }
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);

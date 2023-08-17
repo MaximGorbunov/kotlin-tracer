@@ -1,9 +1,17 @@
 add_compile_options(
         "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu"
         "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;>"
-        "$<$<BOOL:$ENV{THREAD_SANITIZER}>:-fsanitize=thread;-fsanitize=undefined;>"
-        "$<$<BOOL:$ENV{ADDRESS_SANITIZER}>:-fsanitize=address;-fsanitize=undefined;>"
 )
+
+if (DEFINED ENV{ADDRESS_SANITIZER})
+    add_compile_options("-fsanitize=address;-fsanitize=undefined;")
+    add_link_options("-fsanitize=address;-fsanitize=undefined;")
+ENDIF()
+
+if (DEFINED ENV{THREAD_SANITIZER})
+    add_compile_options("-fsanitize=thread;-fsanitize=undefined;")
+    add_link_options("-fsanitize=thread;-fsanitize=undefined;")
+ENDIF()
 
 if (NOT APPLE)
     link_libraries("unwind")
@@ -11,11 +19,6 @@ endif(NOT APPLE)
 
 link_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/release/build/)
 link_libraries(addr2Symbol)
-
-add_link_options(
-        "$<$<BOOL:$ENV{THREAD_SANITIZER}>:-fsanitize=thread;-fsanitize=undefined;>"
-        "$<$<BOOL:$ENV{ADDRESS_SANITIZER}>:-fsanitize=address;-fsanitize=undefined;>"
-)
 
 string(TOLOWER ${CMAKE_SYSTEM_NAME} OS)
 include_directories(${PROJECT_SOURCE_DIR}/addr2Symbol/src/main/)
