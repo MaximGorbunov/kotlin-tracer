@@ -25,7 +25,7 @@ TraceStorage::TraceStorage(
     gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()),
     active_(true) {
   cleaner_thread_ = make_unique<std::thread>([this]() {
-    std::chrono::seconds sleep_time{80};
+    std::chrono::seconds sleep_time{15};
     while (active_.test(std::memory_order_relaxed)) {
       logDebug("Marking for clean");
       mark_for_clean();

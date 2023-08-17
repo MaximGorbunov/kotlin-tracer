@@ -359,12 +359,13 @@ unique_ptr<StackFrame> Profiler::processProfilerMethodInfo(const InstructionInfo
 void Profiler::coroutineCreated(jlong coroutine_id) {
   if (dispatch_type == UNKNOWN) {
     last_created_coroutine_id = coroutine_id;
+    last_created_coroutine_undispatched = false;
     ::jthread thread;
     auto *jvm_ti = jvm_->getJvmTi();
-    int count = 10;
-    jvmtiFrameInfo frames[10];
+    int traces_size = 10;
+    jvmtiFrameInfo frames[traces_size];
     jvm_ti->GetCurrentThread(&thread);
-    jvm_ti->GetStackTrace(thread, 1, 10, frames, &count);
+    jvm_ti->GetStackTrace(thread, 1, traces_size, frames, &traces_size);
     for (const auto &item : frames) {
       char *name, *signature, *generic;
       jvm_ti->GetMethodName(item.method, &name, &signature, &generic);
