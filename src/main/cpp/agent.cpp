@@ -189,10 +189,10 @@ void coroutineCompleted(jlong coroutine_id) {
   }
 }
 
-void traceStart(jboolean suspendFunction) {
+void traceStart(jlong coroutine_id) {
   read_lock lock(mutex);
   if (agent != nullptr) {
-    agent->getProfiler()->traceStart(suspendFunction);
+    agent->getProfiler()->traceStart(coroutine_id);
   }
 }
 

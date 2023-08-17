@@ -23,7 +23,7 @@ class Profiler {
   static std::shared_ptr<Profiler> getInstance();
   void startProfiler();
   void stop();
-  void traceStart(jboolean suspendFunction);
+  void traceStart(jlong coroutine_id);
   void traceEnd(jlong coroutine_id);
   TraceInfo &findOngoingTrace(const jlong &coroutine_id);
   void removeOngoingTrace(const jlong &coroutine_id);

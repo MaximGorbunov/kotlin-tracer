@@ -33,6 +33,7 @@ class InstrumentationTest {
     @Test
     fun dispatchUndispatchedTest() = runBlocking {
         launch(start = CoroutineStart.UNDISPATCHED) {
+            launch(start = CoroutineStart.UNDISPATCHED) { println("stub") }
             switchTableComplexSuspend(2)
         }.join()
     }
@@ -40,6 +41,7 @@ class InstrumentationTest {
     @Test
     fun dispatchUndispatchedWithoutSuspendTest() = runBlocking {
         launch(start = CoroutineStart.UNDISPATCHED) {
+            launch(start = CoroutineStart.UNDISPATCHED) { println("stub") }
             suspendWithoutSuspensionsFunction()
         }.join()
     }
@@ -47,6 +49,7 @@ class InstrumentationTest {
     @Test
     fun dispatchLazyTest() = runBlocking {
         launch(start = CoroutineStart.LAZY) {
+            launch(start = CoroutineStart.UNDISPATCHED) { println("stub") }
             switchTableComplexSuspend(2)
         }.join()
     }
@@ -54,6 +57,7 @@ class InstrumentationTest {
     @Test
     fun dispatchAtomicTest() = runBlocking {
         launch(start = CoroutineStart.ATOMIC) {
+            launch(start = CoroutineStart.UNDISPATCHED) { println("stub") }
             switchTableComplexSuspend(2)
         }.join()
     }
