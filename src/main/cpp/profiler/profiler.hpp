@@ -53,7 +53,7 @@ class Profiler {
            std::chrono::nanoseconds threshold,
            std::string output_path,
            std::chrono::nanoseconds interval);
-  void signal_action(int signo, siginfo_t *siginfo, void *ucontext);
+  void signal_action(void *ucontext);
   void processTraces();
   std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId);
   std::unique_ptr<StackFrame> processProfilerMethodInfo(const InstructionInfo &instruction_info);

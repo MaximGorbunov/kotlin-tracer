@@ -44,9 +44,7 @@ std::shared_ptr<Profiler> Profiler::create(std::shared_ptr<JVM> jvm,
   return instance_;
 }
 
-void Profiler::signal_action(__attribute__((unused)) int signo,
-                             __attribute__((unused)) siginfo_t *siginfo,
-                             void *ucontext) {
+void Profiler::signal_action(void *ucontext) {
   if (!active_.test(std::memory_order_relaxed)) return;
   auto id = trace_counter.fetch_add(1, std::memory_order_acquire);
   auto trace = traces_->at(id);
@@ -76,8 +74,8 @@ Profiler::Profiler(
   struct sigaction action{};
   action.sa_flags = 0;
   sigemptyset(&action.sa_mask);
-  auto pFunction = [](int signo, siginfo_t *siginfo, void *ucontext) {
-    getInstance()->signal_action(signo, siginfo, ucontext);
+  auto pFunction = [](const int signo, siginfo_t *siginfo, void *ucontext) {
+    getInstance()->signal_action(ucontext);
   };
   action.sa_sigaction = pFunction;
   if (sigaction(SIGVTALRM, &action, nullptr) == -1) {
