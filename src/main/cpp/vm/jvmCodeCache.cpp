@@ -1,7 +1,9 @@
 #include "jvmCodeCache.h"
 
 #include <string>
+#include <sstream>
 #include "../utils/pointerValidation.h"
+#include "utils/log.h"
 
 namespace kotlin_tracer {
 bool JVMCodeCache::isJavaFrame(uint64_t instruction_pointer) {
@@ -19,6 +21,7 @@ bool JVMCodeCache::isJavaFrame(uint64_t instruction_pointer) {
 }
 
 jmethodID JVMCodeCache::getJMethodId(uint64_t instruction_pointer, uint64_t frame_pointer) {
+  if (!is_valid(frame_pointer)) return nullptr;
   auto len = *heaps_length;
   for (int i = 0; i < len; ++i) {
     auto heap_ptr = heaps_data[i];
@@ -46,7 +49,10 @@ jmethodID JVMCodeCache::getJMethodId(uint64_t instruction_pointer, uint64_t fram
       if (codeBlobNameStr == "Interpreter") {
         auto *fp_ptr = reinterpret_cast<intptr_t *>(frame_pointer);
         intptr_t method_ptr = fp_ptr[-3];
-        if (method_ptr == 0) return nullptr;
+        if (!is_valid(method_ptr + constMethodField->offset)) return nullptr;
+        std::ostringstream hex;
+        hex << std::hex << (method_ptr + constMethodField->offset);
+        logDebug("" + hex.str() + " valid");
         auto constMethod_ptr = *reinterpret_cast<uint64_t *>(method_ptr + constMethodField->offset);
         auto idnum_ptr_offset = constMethod_ptr + methodIdNumField->offset;
         if (!is_valid(idnum_ptr_offset)) return nullptr;
@@ -54,7 +60,7 @@ jmethodID JVMCodeCache::getJMethodId(uint64_t instruction_pointer, uint64_t fram
         auto constantPool_ptr = *reinterpret_cast<uint64_t *>(constMethod_ptr + constantsField->offset);
         uint64_t poolHandler_ptr_offset = constantPool_ptr + poolHolderField->offset;
         if (!is_valid(poolHandler_ptr_offset)) return nullptr;
-        auto poolHolder_ptr = *reinterpret_cast<uint64_t *>(poolHandler_ptr_offset);
+        auto poolHolder_ptr = *reinterpret_cast<intptr_t *>(poolHandler_ptr_offset);
         std::atomic_thread_fence(std::memory_order_acquire);
         auto jmethodIds = *reinterpret_cast<jmethodID **>(poolHolder_ptr + jmethodIdsField->offset);
         jmethodID id = nullptr;

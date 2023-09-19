@@ -34,17 +34,9 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
     if (lrbp != 0 && lrbp < rbp) break;
     unw_get_reg(&cursor, UNW_REG_IP, &ip);
     unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
-    if (!jvm->isJavaFrame(ip)) {
-//        abi::__cxa_demangle(buf,
-      trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
-      trace->instructions[trace_index].frame = rbp;
-      trace->instructions[trace_index].java_frame = false;
-    } else {
-      auto jmethod_id = jvm->getJMethodId(ip, rbp);
-      trace->instructions[trace_index].instruction = reinterpret_cast<intptr_t>(jmethod_id);
-      trace->instructions[trace_index].frame = 0;
-      trace->instructions[trace_index].java_frame = true;
-    };
+    trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
+    trace->instructions[trace_index].frame = rbp;
+    trace->instructions[trace_index].java_frame = false;
     trace_index++;
     lrbp = rbp;
   } while(unw_step(&cursor) > 0 && trace_index < trace->size);

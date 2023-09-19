@@ -1,6 +1,6 @@
 add_compile_options(
         "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu"
-        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;>"
+        "$<$<CONFIG:DEBUG>:-Og;-DDEBUG=true;>"
 )
 
 if (DEFINED ENV{ADDRESS_SANITIZER})

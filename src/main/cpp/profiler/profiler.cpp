@@ -104,9 +104,17 @@ void Profiler::startProfiler() {
         traces_ = std::make_unique<ConcurrentVector<shared_ptr<AsyncTrace>>>();
         trace_counter.store(0, std::memory_order_release);
         threads->forEach(lambda);
-        std::function<void(shared_ptr<AsyncTrace>)> read_traces = [](const shared_ptr<AsyncTrace> &trace) {
+        std::function<void(shared_ptr<AsyncTrace>)> read_traces = [this](const shared_ptr<AsyncTrace> &trace) {
           if (trace != nullptr) {
             trace->ready.wait(false, std::memory_order_acquire);
+            for (int i = 0; i < trace->size; ++i) {
+              if (jvm_->isJavaFrame(trace->instructions[i].instruction)) {
+                auto jmethod_id = jvm_->getJMethodId(trace->instructions[i].instruction, trace->instructions[i].frame);
+                trace->instructions[i].instruction = reinterpret_cast<intptr_t>(jmethod_id);
+                trace->instructions[i].frame = 0;
+                trace->instructions[i].java_frame = true;
+              };
+            }
             getInstance()->storage_.addRawTrace(
                 currentTimeNs(),
                 trace,
@@ -118,7 +126,7 @@ void Profiler::startProfiler() {
 
         this->processTraces();
         auto elapsed_time = currentTimeNs() - start;
-        auto sleep_time = interval_.count() - elapsed_time;
+        auto sleep_time = interval_.count() - elapsed_time.get();
         if (sleep_time > 0) {
           std::this_thread::sleep_for(std::chrono::nanoseconds(sleep_time));
         } else {
@@ -142,7 +150,7 @@ void Profiler::stop() {
 static inline TraceTime calculate_elapsed_time(const timeval &end, const timeval &begin) {
   std::chrono::seconds seconds(end.tv_sec - begin.tv_sec);
   std::chrono::microseconds microseconds(end.tv_usec - begin.tv_usec);
-  return std::chrono::duration_cast<std::chrono::microseconds>(seconds).count() + microseconds.count();
+  return TraceTime {std::chrono::duration_cast<std::chrono::microseconds>(seconds).count() + microseconds.count() };
 }
 
 static inline void calculate_resource_usage(const shared_ptr<TraceStorage::CoroutineInfo> &coroutine_info) {
@@ -168,10 +176,10 @@ void Profiler::traceStart(jlong coroutine_id) {
   }
   jvm_->findThread(pthread_self())->current_traces.fetch_add(1, std::memory_order_relaxed);
   auto start = currentTimeNs();
-  TraceInfo trace_info{coroutine_id, start, 0};
+  TraceInfo trace_info{coroutine_id, start, TraceTime{0}};
   storage_.createChildCoroutineStorage(coroutine_id);
   if (storage_.addOngoingTraceInfo(trace_info)) {
-    logDebug("trace start: " + to_string(start) + " coroutine:" + to_string(coroutine_id));
+    logDebug("trace start: " + to_string(start.get()) + " coroutine:" + to_string(coroutine_id));
   } else {
     throw runtime_error("Found trace that already started: " + to_string(coroutine_id));
   }
@@ -192,10 +200,10 @@ void Profiler::traceEnd(jlong coroutine_id) {
   traceInfo.end = finish;
   removeOngoingTrace(traceInfo.coroutine_id);
   auto elapsedTime = traceInfo.end - traceInfo.start;
-  logDebug("trace end: " + to_string(finish) + ":" + to_string(coroutine_id) + " time: "
-               + to_string(elapsedTime));
+  logDebug("trace end: " + to_string(finish.get()) + ":" + to_string(coroutine_id) + " time: "
+               + to_string(elapsedTime.get()));
   logDebug("threshold: " + to_string(threshold_.count()));
-  if (elapsedTime > threshold_.count()) {
+  if (elapsedTime.get() > threshold_.count()) {
     plot(output_path_ + "/trace" + to_string(output_counter.fetch_add(1, std::memory_order_relaxed)) + ".html",
          traceInfo,
          storage_);
@@ -351,7 +359,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
 
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   if (coroutine_info == nullptr) return;
-  if (coroutine_info->last_resume > 0) {
+  if (coroutine_info->last_resume.get() > 0) {
     calculate_resource_usage(coroutine_info);
     coroutine_info->last_resume = 0;  // To not count multiple times chain
   }
@@ -362,7 +370,7 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
   jvmti->GetCurrentThread(&thread);
   jvmtiError err = jvmti->GetStackTrace(thread, 0, size(frames), frames, &framesCount);
   if (err == JVMTI_ERROR_NONE && framesCount >= 1) {
-    auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{coroutine_id, currentTimeNs(), 0,
+    auto suspensionInfo = make_shared<SuspensionInfo>(SuspensionInfo{coroutine_id, currentTimeNs(), TraceTime{0},
                                                                      make_unique<list<std::unique_ptr<StackFrame>>>()});
     for (int i = 0; i < framesCount; ++i) {
       suspensionInfo->suspension_stack_trace->push_back(

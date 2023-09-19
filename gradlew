@@ -231,4 +231,4 @@ eval "set -- $(
         tr '\n' ' '
     )" '"$@"'
 
-exec env DYLD_INSERT_LIBRARIES=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/14.0.0/lib/darwin/libclang_rt.asan_osx_dynamic.dylib "$JAVACMD" "$@"
+exec "$JAVACMD" "$@"
