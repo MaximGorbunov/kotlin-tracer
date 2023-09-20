@@ -8,7 +8,7 @@ if (DEFINED ENV{ADDRESS_SANITIZER})
     add_link_options("-fsanitize=address;-fsanitize=undefined;")
 ENDIF()
 
-if (DEFINED ENV{THREAD_SANITIZER})
+if (DEFINED ENV{THREAD_SANITIZER} AND NOT APPLE)
     add_compile_options("-fsanitize=thread;-fsanitize=undefined;-Wno-error=tsan")
     add_link_options("-fsanitize=thread;-fsanitize=undefined;-Wno-error=tsan")
 ENDIF()

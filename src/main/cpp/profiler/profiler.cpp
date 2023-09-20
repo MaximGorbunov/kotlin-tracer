@@ -104,17 +104,9 @@ void Profiler::startProfiler() {
         traces_ = std::make_unique<ConcurrentVector<shared_ptr<AsyncTrace>>>();
         trace_counter.store(0, std::memory_order_release);
         threads->forEach(lambda);
-        std::function<void(shared_ptr<AsyncTrace>)> read_traces = [this](const shared_ptr<AsyncTrace> &trace) {
+        std::function<void(shared_ptr<AsyncTrace>)> read_traces = [](const shared_ptr<AsyncTrace> &trace) {
           if (trace != nullptr) {
             trace->ready.wait(false, std::memory_order_acquire);
-            for (int i = 0; i < trace->size; ++i) {
-              if (jvm_->isJavaFrame(trace->instructions[i].instruction)) {
-                auto jmethod_id = jvm_->getJMethodId(trace->instructions[i].instruction, trace->instructions[i].frame);
-                trace->instructions[i].instruction = reinterpret_cast<intptr_t>(jmethod_id);
-                trace->instructions[i].frame = 0;
-                trace->instructions[i].java_frame = true;
-              };
-            }
             getInstance()->storage_.addRawTrace(
                 currentTimeNs(),
                 trace,

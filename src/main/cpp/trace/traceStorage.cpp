@@ -95,8 +95,7 @@ void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
       0,
       0,
       rusage{},
-      std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
-  );
+      std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>());
   getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
   coroutine_info_map_->insert(
       coroutine_id,

@@ -4,7 +4,6 @@
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
-#include <string>
 
 #include "../../utils/log.h"
 #include "vm/jvm.hpp"
@@ -49,8 +48,7 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
   //Skip until _sigtramp
   while (unw_step(&cursor) > 0) {
     if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
-      auto name = string(buf);
-      if (name == "_sigtramp") {
+      if (strcmp(buf, "_sigtramp") == 0) {
         // At x86_64 macos sets pointer to ucontext in RBX register
         //  recover_frame(cursor);
         recover_frame(cursor);

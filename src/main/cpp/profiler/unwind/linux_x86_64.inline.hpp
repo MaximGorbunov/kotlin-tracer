@@ -2,8 +2,6 @@
 #define KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_LINUX_X86_64_INLINE_H_
 
 #if !defined(__APPLE__) && (defined(__x86_64__) || defined(_M_X64))
-#include <string>
-
 #define UNW_LOCAL_ONLY
 #include <libunwind-x86_64.h>
 
@@ -13,7 +11,6 @@
 
 namespace kotlin_tracer {
 
-using std::string;
 static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
   unw_context_t context;
   unw_cursor_t cursor;
@@ -34,9 +31,17 @@ static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM>
     if (lrbp != 0 && lrbp < rbp) break;
     unw_get_reg(&cursor, UNW_REG_IP, &ip);
     unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
-    trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
-    trace->instructions[trace_index].frame = rbp;
-    trace->instructions[trace_index].java_frame = false;
+    if (!jvm->isJavaFrame(ip)) {
+//        abi::__cxa_demangle(buf,
+      trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
+      trace->instructions[trace_index].frame = rbp;
+      trace->instructions[trace_index].java_frame = false;
+    } else {
+      auto jmethod_id = jvm->getJMethodId(ip, rbp);
+      trace->instructions[trace_index].instruction = reinterpret_cast<intptr_t>(jmethod_id);
+      trace->instructions[trace_index].frame = 0;
+      trace->instructions[trace_index].java_frame = true;
+    };
     trace_index++;
     lrbp = rbp;
   } while(unw_step(&cursor) > 0 && trace_index < trace->size);

@@ -9,7 +9,8 @@
 #include "log.h"
 
 namespace kotlin_tracer {
-using std::string, std::unique_ptr, std::shared_ptr;
+using std::string, std::unique_ptr, std::shared_ptr, std::chrono::duration_cast, std::chrono::milliseconds,
+      std::chrono::nanoseconds;
 static unique_ptr<string> top_half = std::make_unique<string>(
     "<!DOCTYPE html>\n"
     "<html>\n"
@@ -227,7 +228,7 @@ static void print_gc_info(const string &parent,
   std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each =
       [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent> &gc_event) {
         auto gc_time = gc_event->end - gc_event->start;
-        auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time.get()));
+        auto running_time = duration_cast<milliseconds>(nanoseconds(gc_time.get()));
         file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
         file << "data[0].parents.push('" + parent + "');\n";
         file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
