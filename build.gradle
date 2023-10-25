@@ -7,10 +7,6 @@ repositories {
     mavenCentral()
 }
 
-ext {
-    method = project.properties['method']
-}
-
 subprojects {
     afterEvaluate {
         tasks.named("test") {
@@ -22,7 +18,7 @@ subprojects {
 test {
     useJUnitPlatform()
     testLogging.showStandardStreams = true
-    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.ext.method +",jarPath=kotlin-tracer-java/build/libs/kotlin-tracer-java.jar"
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.properties['method'] + ",jarPath=kotlin-tracer-java/build/libs/kotlin-tracer-java.jar" + ",outputPath=" + project.properties['outputPath']
     outputs.upToDateWhen {false}
 }
 

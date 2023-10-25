@@ -40,6 +40,7 @@ inline std::shared_ptr<std::filesystem::path> runJVMTest(const std::string &t_in
       + " -p " + PROJECT_SOURCE_DIR
       + " -Pagent=" + AGENT_PATH
       + " -Pmethod=" + t_intercept_method + " test "
+      + " -PoutputPath=" + std::filesystem::temp_directory_path().string() + " "
       + "--tests " + t_test_name
       + " > " + temp_file_path->string()).c_str());
   return temp_file_path;
