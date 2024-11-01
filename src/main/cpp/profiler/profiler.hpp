@@ -15,12 +15,12 @@ namespace kotlin_tracer {
 
 class Profiler {
  public:
-  static std::shared_ptr<Profiler> create(
-      std::shared_ptr<JVM> jvm,
+  static Profiler* create(
+      JVM* jvm,
       std::chrono::nanoseconds threshold,
       const std::string &output_path,
       std::chrono::nanoseconds interval);
-  static std::shared_ptr<Profiler> getInstance();
+  static Profiler* getInstance();
   void startProfiler();
   void stop();
   void traceStart(jlong coroutine_id);
@@ -35,21 +35,21 @@ class Profiler {
   void gcFinish();
  private:
   std::unique_ptr<std::thread> profiler_thread_;
-  static std::shared_ptr<Profiler> instance_;
-  std::shared_ptr<JVM> jvm_;
+  static std::unique_ptr<Profiler> instance_;
+  JVM* jvm_;
   AsyncGetCallTrace async_trace_ptr_;
   TraceStorage storage_;
-  ConcurrentCleanableMap<jmethodID, std::shared_ptr<std::string>> method_info_map_;
-  ConcurrentCleanableMap<jmethodID , std::shared_ptr<std::string>> class_info_map_;
+  ConcurrentCleanableMap<jmethodID, std::string> method_info_map_;
+  ConcurrentCleanableMap<jmethodID , std::string> class_info_map_;
   std::atomic_flag active_;
   std::chrono::nanoseconds threshold_;
   std::chrono::nanoseconds interval_;
   std::string output_path_;
-  std::unique_ptr<ConcurrentVector<std::shared_ptr<AsyncTrace>>> traces_;
+  std::unique_ptr<ConcurrentVector<std::unique_ptr<AsyncTrace>>> traces_;
   std::atomic_int trace_counter{0};
   std::atomic_int output_counter{0};
 
-  Profiler(std::shared_ptr<JVM> jvm,
+  Profiler(JVM* jvm,
            std::chrono::nanoseconds threshold,
            std::string output_path,
            std::chrono::nanoseconds interval);

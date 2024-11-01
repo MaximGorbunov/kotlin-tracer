@@ -14,10 +14,10 @@ namespace kotlin_tracer {
 typedef struct RawCallTraceRecord {
   TraceTime time{0};
   int64_t trace_count;
-  std::shared_ptr<AsyncTrace> trace;
+  std::unique_ptr<AsyncTrace> trace;
   pthread_t thread;
   int64_t coroutine_id;
-  RawCallTraceRecord() = default;
+  RawCallTraceRecord(): time(0), trace_count(0), trace(nullptr), thread{}, coroutine_id(0) {};
 } RawCallTraceRecord;
 
 typedef struct StackFrame {
@@ -26,8 +26,8 @@ typedef struct StackFrame {
 } StackFrame;
 
 typedef struct ProcessedTraceRecord {
-  std::shared_ptr<std::list<std::unique_ptr<StackFrame>>> stack_trace;
-  std::shared_ptr<std::string> thread_name;
+  std::unique_ptr<std::list<std::unique_ptr<StackFrame>>> stack_trace;
+  std::string* thread_name;
   TraceTime time{0};
 } ProcessedTraceRecord;
 
@@ -37,8 +37,8 @@ typedef struct TraceInfo {
   TraceTime end;
   TraceInfo(
       jlong a_coroutine_id,
-      TraceTime a_start,
-      TraceTime a_end
+      const TraceTime& a_start,
+      const TraceTime& a_end
   ) : coroutine_id(a_coroutine_id),
       start(a_start),
       end(a_end) {}

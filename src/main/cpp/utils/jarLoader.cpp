@@ -12,8 +12,7 @@ namespace kotlin_tracer {
 unique_ptr<kotlin_tracer::InstrumentationMetadata> load(
     std::unique_ptr<std::string> jar_path,
     const std::string &name,
-    const std::shared_ptr<
-        JVM> &jvm
+    JVM* jvm
 ) {
   auto jarPath = jar_path == nullptr
                  ? absolute(current_path() / name).string()

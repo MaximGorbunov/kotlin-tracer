@@ -20,7 +20,7 @@ static inline uintptr_t strip_pointer(uintptr_t ptr) {
 }
 
 [[maybe_unused]]
-static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
   uint64_t ip, fp, lr;
   ip = ucontext->REGISTER(pc);
   fp = ucontext->REGISTER(fp);

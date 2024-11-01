@@ -44,11 +44,11 @@ TraceStorage::~TraceStorage() {
   logDebug("Cleaning trace storage finished");
 }
 
-void TraceStorage::addRawTrace(TraceTime time, const shared_ptr<AsyncTrace>& trace,
+void TraceStorage::addRawTrace(TraceTime time, unique_ptr<AsyncTrace> trace,
                                pthread_t thread, int64_t coroutine_id) {
   auto record = std::make_shared<RawCallTraceRecord>();
   record->time.set(time.get());
-  record->trace = trace;
+  record->trace = std::move(trace);
   record->thread = thread;
   record->trace_count = record->trace->size;
   record->coroutine_id = coroutine_id;

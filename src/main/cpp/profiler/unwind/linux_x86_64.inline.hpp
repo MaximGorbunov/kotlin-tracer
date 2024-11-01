@@ -11,7 +11,7 @@
 
 namespace kotlin_tracer {
 
-static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
   unw_context_t context;
   unw_cursor_t cursor;
   unw_getcontext(&context);

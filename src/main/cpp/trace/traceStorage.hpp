@@ -55,7 +55,7 @@ class TraceStorage {
   typedef std::shared_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> Traces;
   typedef ConcurrentCleanableMap<jlong, Traces> TraceMap;
 
-  void addRawTrace(TraceTime t_time, const std::shared_ptr<AsyncTrace> &trace,
+  void addRawTrace(TraceTime t_time, std::unique_ptr<AsyncTrace> trace,
                    pthread_t thread, int64_t coroutine_id);
   void addProcessedTrace(jlong coroutine_id, const std::shared_ptr<ProcessedTraceRecord> &record);
   [[nodiscard]] Traces getProcessedTraces(jlong coroutine_id) const;

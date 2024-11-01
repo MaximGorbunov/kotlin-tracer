@@ -38,7 +38,7 @@ static inline void recover_frame(unw_cursor_t &cursor) {
   unw_set_reg(&cursor, UNW_X86_64_RSP, ucontext->REGISTER(rsp));
 }
 
-static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
   unw_context_t context;
   unw_cursor_t cursor;
   unw_getcontext(&context);

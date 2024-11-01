@@ -146,7 +146,7 @@ JNIEXPORT jint JNICALL Agent_OnLoad(
     callbacks->GarbageCollectionStart = GarbageCollectionStart;
     callbacks->GarbageCollectionFinish = GarbageCollectionFinish;
     agent = make_unique<kotlin_tracer::Agent>(
-        std::shared_ptr<JavaVM>(java_vm, [](JavaVM *vm) {}),
+        java_vm,
         std::move(callbacks),
         std::move(profilerOptions));
   }
@@ -203,15 +203,15 @@ void traceEnd(jlong coroutine_id) {
   }
 }
 
-shared_ptr<JVM> Agent::getJVM() {
-  return jvm_;
+JVM* Agent::getJVM() {
+  return jvm_.get();
 }
 
-shared_ptr<Instrumentation> Agent::getInstrumentation() {
-  return instrumentation_;
+Instrumentation* Agent::getInstrumentation() {
+  return instrumentation_.get();
 }
 
-shared_ptr<Profiler> Agent::getProfiler() {
-  return profiler_;
+Profiler* Agent::getProfiler() {
+  return profiler_.get();
 }
 }  // namespace kotlin_tracer
