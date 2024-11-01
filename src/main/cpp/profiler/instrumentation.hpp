@@ -14,8 +14,8 @@
 namespace kotlin_tracer {
 class Instrumentation {
  public:
-  explicit Instrumentation(std::unique_ptr<ProfilerOptions> profiler_options, std::shared_ptr<JVM> jvm) :
-      profiler_options_(std::move(profiler_options)), jvm_(std::move(jvm)) {};
+  explicit Instrumentation(std::unique_ptr<ProfilerOptions> profiler_options, JVM* jvm) :
+      profiler_options_(std::move(profiler_options)), jvm_(jvm) {};
 
   ~Instrumentation() = default;
 
@@ -28,7 +28,7 @@ class Instrumentation {
   std::unique_ptr<std::string> getJarPath();
  private:
   std::unique_ptr<ProfilerOptions> profiler_options_;
-  std::shared_ptr<JVM> jvm_;
+  JVM* jvm_;
   std::unique_ptr<InstrumentationMetadata> instrumentation_metadata_;
 
   jbyteArray instrumentCoroutines(const unsigned char *byte_code, int size);

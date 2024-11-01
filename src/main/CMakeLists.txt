@@ -1,6 +1,6 @@
 add_compile_options(
         "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu"
-        "$<$<CONFIG:DEBUG>:-O2;-DDEBUG=true;>"
+        "$<$<CONFIG:DEBUG>:-Og;-DDEBUG=true;>"
 )
 
 if (DEFINED ENV{ADDRESS_SANITIZER})
@@ -8,9 +8,9 @@ if (DEFINED ENV{ADDRESS_SANITIZER})
     add_link_options("-fsanitize=address;-fsanitize=undefined;")
 ENDIF()
 
-if (DEFINED ENV{THREAD_SANITIZER})
-    add_compile_options("-fsanitize=thread;-fsanitize=undefined;")
-    add_link_options("-fsanitize=thread;-fsanitize=undefined;")
+if (DEFINED ENV{THREAD_SANITIZER} AND NOT APPLE)
+    add_compile_options("-fsanitize=thread;-fsanitize=undefined;-Wno-error=tsan")
+    add_link_options("-fsanitize=thread;-fsanitize=undefined;-Wno-error=tsan")
 ENDIF()
 
 if (NOT APPLE)

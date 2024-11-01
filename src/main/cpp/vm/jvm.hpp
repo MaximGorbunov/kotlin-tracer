@@ -16,10 +16,10 @@
 namespace kotlin_tracer {
 
 typedef struct threadInfo {
-  const std::shared_ptr<std::string> name;
+  const std::unique_ptr<std::string> name;
   const pthread_t id;
   std::atomic_int current_traces = 0;
-  threadInfo(std::shared_ptr<std::string> _name, pthread_t _id): name(std::move(_name)), id(_id), current_traces(0) {}
+  threadInfo(std::unique_ptr<std::string> _name, pthread_t _id): name(std::move(_name)), id(_id), current_traces(0) {}
 } ThreadInfo;
 
 typedef struct InstrumentationMetadata {
@@ -30,7 +30,7 @@ typedef struct InstrumentationMetadata {
 
 class JVM {
  public:
-  JVM(std::shared_ptr<JavaVM> java_vm, jvmtiEventCallbacks *callbacks);
+  JVM(JavaVM* java_vm, std::unique_ptr<jvmtiEventCallbacks> callbacks);
   void addCurrentThread(jthread thread);
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> getThreads();
   std::shared_ptr<ThreadInfo> findThread(const pthread_t &thread);
@@ -45,7 +45,7 @@ class JVM {
   const addr2Symbol::function_info *getNativeFunctionInfo(intptr_t address);
 
  private:
-  std::shared_ptr<JavaVM> java_vm_;
+  JavaVM* java_vm_;
   jvmtiEnv *jvmti_env_;
   std::unique_ptr<JVMCodeCache> jvm_code_cache_;
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;

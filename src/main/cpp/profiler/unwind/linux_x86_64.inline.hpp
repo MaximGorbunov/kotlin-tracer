@@ -2,8 +2,6 @@
 #define KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_LINUX_X86_64_INLINE_H_
 
 #if !defined(__APPLE__) && (defined(__x86_64__) || defined(_M_X64))
-#include <string>
-
 #define UNW_LOCAL_ONLY
 #include <libunwind-x86_64.h>
 
@@ -13,8 +11,7 @@
 
 namespace kotlin_tracer {
 
-using std::string;
-static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
   unw_context_t context;
   unw_cursor_t cursor;
   unw_getcontext(&context);

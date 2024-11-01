@@ -2,7 +2,6 @@
 #define KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_APPLE_AARCH64_INLINE_H_
 #if defined(__APPLE__) && defined(__aarch64__)
 
-#include <string>
 #include <ptrauth.h>
 
 #include "../../utils/log.h"
@@ -21,7 +20,7 @@ static inline uintptr_t strip_pointer(uintptr_t ptr) {
 }
 
 [[maybe_unused]]
-static inline void unwind_stack(ucontext_t *ucontext, const std::shared_ptr<JVM> &jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
   uint64_t ip, fp, lr;
   ip = ucontext->REGISTER(pc);
   fp = ucontext->REGISTER(fp);

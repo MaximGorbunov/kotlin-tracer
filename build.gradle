@@ -3,12 +3,12 @@ plugins {
     id "org.jetbrains.kotlin.jvm" version "1.8.20"
 }
 
-repositories {
-    mavenCentral()
+kotlin {
+    jvmToolchain(17)
 }
 
-ext {
-    method = project.properties['method']
+repositories {
+    mavenCentral()
 }
 
 subprojects {
@@ -22,7 +22,7 @@ subprojects {
 test {
     useJUnitPlatform()
     testLogging.showStandardStreams = true
-    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.ext.method +",jarPath=kotlin-tracer-java/build/libs/kotlin-tracer-java.jar"
+    jvmArgs "-Dkotlinx.coroutines.debug", "-agentpath:" + project.properties['agent'] + "=period=1000000000,method=" + project.properties['method'] + ",jarPath=kotlin-tracer-java/build/libs/kotlin-tracer-java.jar" + ",outputPath=" + project.properties['outputPath']
     outputs.upToDateWhen {false}
 }
 

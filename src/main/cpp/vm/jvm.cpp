@@ -9,9 +9,9 @@
 namespace kotlin_tracer {
 using std::shared_ptr, std::string, std::unordered_map;
 JVM::JVM(
-    std::shared_ptr<JavaVM> java_vm,
-    jvmtiEventCallbacks *callbacks
-) : java_vm_(std::move(java_vm)), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()),
+    JavaVM *java_vm,
+    std::unique_ptr<jvmtiEventCallbacks> callbacks
+) : java_vm_(java_vm), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()),
     addr_2_symbol_() {
   jvmtiEnv *pJvmtiEnv = nullptr;
   this->java_vm_->GetEnv(reinterpret_cast<void **>(&pJvmtiEnv), JVMTI_VERSION_11);
@@ -20,7 +20,7 @@ JVM::JVM(
   capabilities.can_generate_garbage_collection_events = 1;
   capabilities.can_generate_all_class_hook_events = 1;
   jvmti_env_->AddCapabilities(&capabilities);
-  jvmti_env_->SetEventCallbacks(callbacks, sizeof(*callbacks));
+  jvmti_env_->SetEventCallbacks(callbacks.get(), sizeof(*callbacks));
   jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
                                        nullptr);
   jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START,
@@ -56,8 +56,7 @@ void JVM::addCurrentThread(::jthread thread) {
     logError("Failed to get thead info:" + std::to_string(err));
     return;
   }
-  auto name = std::make_shared<std::string>(info.name);
-  auto threadInfo = std::make_shared<ThreadInfo>(name, currentThread);
+  auto threadInfo = std::make_shared<ThreadInfo>(std::make_unique<string>(info.name), currentThread);
   threads_->push_back(threadInfo);
 }
 

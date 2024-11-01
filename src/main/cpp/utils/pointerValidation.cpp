@@ -1,11 +1,15 @@
 #include "pointerValidation.h"
 
+inline bool is_aligned(const uint64_t ptr) noexcept {
+  return !(ptr % alignof(uint64_t));
+}
+
 #if defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach/mach_vm.h>
 
 bool is_valid(uint64_t address_ptr) {
-  if (address_ptr == 0) return false;
+  if (address_ptr == 0 || !is_aligned(address_ptr)) return false;
   vm_map_t task = mach_task_self();
   auto address = static_cast<mach_vm_address_t>(address_ptr);
   mach_vm_size_t size = 0;

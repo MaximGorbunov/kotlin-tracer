@@ -9,7 +9,8 @@
 #include "log.h"
 
 namespace kotlin_tracer {
-using std::string, std::unique_ptr, std::shared_ptr;
+using std::string, std::unique_ptr, std::shared_ptr, std::chrono::duration_cast, std::chrono::milliseconds,
+      std::chrono::nanoseconds;
 static unique_ptr<string> top_half = std::make_unique<string>(
     "<!DOCTYPE html>\n"
     "<html>\n"
@@ -62,7 +63,7 @@ static inline std::unique_ptr<std::string> printSuspension(
 ) {
   std::stringstream stack_trace_stream;
   auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds(suspension->end - suspension->start));
+      std::chrono::nanoseconds((suspension->end - suspension->start).get()));
   for (auto &frame : *suspension->suspension_stack_trace) {
     stack_trace_stream << *frame->frame << "<br>";
   }
@@ -153,11 +154,11 @@ static void print_trace_info(const string &parent,
   }
   auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
   auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds(coroutine_info->wall_clock_running_time));
+      std::chrono::nanoseconds(coroutine_info->wall_clock_running_time.get()));
   auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds(coroutine_info->cpu_user_clock_running_time_us));
+      std::chrono::microseconds(coroutine_info->cpu_user_clock_running_time_us.get()));
   auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds(coroutine_info->cpu_system_clock_running_time_us));
+      std::chrono::microseconds(coroutine_info->cpu_system_clock_running_time_us.get()));
 
   file << "data[0].labels.push('" + coroutineName + "');\n";
   file << "data[0].parents.push('" + parent + "');\n";
@@ -227,7 +228,7 @@ static void print_gc_info(const string &parent,
   std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each =
       [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent> &gc_event) {
         auto gc_time = gc_event->end - gc_event->start;
-        auto running_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(gc_time));
+        auto running_time = duration_cast<milliseconds>(nanoseconds(gc_time.get()));
         file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
         file << "data[0].parents.push('" + parent + "');\n";
         file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";

@@ -44,11 +44,11 @@ TraceStorage::~TraceStorage() {
   logDebug("Cleaning trace storage finished");
 }
 
-void TraceStorage::addRawTrace(TraceTime time, const shared_ptr<AsyncTrace>& trace,
+void TraceStorage::addRawTrace(TraceTime time, unique_ptr<AsyncTrace> trace,
                                pthread_t thread, int64_t coroutine_id) {
-  auto record = std::make_shared<RawCallTraceRecord>(RawCallTraceRecord{});
-  record->time = time;
-  record->trace = trace;
+  auto record = std::make_shared<RawCallTraceRecord>();
+  record->time.set(time.get());
+  record->trace = std::move(trace);
   record->thread = thread;
   record->trace_count = record->trace->size;
   record->coroutine_id = coroutine_id;
@@ -87,7 +87,7 @@ void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspensio
 }
 
 void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
-  auto coroutine_info = std::make_shared<CoroutineInfo>(CoroutineInfo{
+  auto coroutine_info = std::make_shared<CoroutineInfo>(
       currentTimeNs(),
       0,
       0,
@@ -95,8 +95,7 @@ void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
       0,
       0,
       rusage{},
-      std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>()
-  });
+      std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>());
   getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
   coroutine_info_map_->insert(
       coroutine_id,
@@ -163,7 +162,7 @@ void TraceStorage::clean() {
 }
 
 void TraceStorage::gcStart() {
-  gc_events_->push_back(make_shared<GCEvent>(GCEvent{currentTimeNs(), 0}));
+  gc_events_->push_back(make_shared<GCEvent>(GCEvent{currentTimeNs(), TraceTime{0}}));
 }
 
 void TraceStorage::gcFinish() {
@@ -174,8 +173,8 @@ void TraceStorage::gcFinish() {
 }
 
 void TraceStorage::findGcEvents(
-    const TraceTime start,
-    const TraceTime stop,
+    const TraceTime &start,
+    const TraceTime &stop,
     const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
   std::function<bool(shared_ptr<GCEvent>)> filter = [start, stop](const shared_ptr<GCEvent>& event) {
     return event->start >= start && event->end <= stop;

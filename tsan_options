@@ -1,0 +1,9 @@
+signal:kotlin_tracer::JVM::getJMethodId
+
+called_from_lib:libjvm.*
+called_from_lib:libjava.*
+called_from_lib:libz.*
+called_from_lib:libjimage.*
+called_from_lib:libzip.*
+called_from_lib:libnetty_transport_native*.*
+called_from_lib:libio_grpc_netty_shaded_netty*.*

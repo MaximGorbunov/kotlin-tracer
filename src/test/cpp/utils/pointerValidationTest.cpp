@@ -11,7 +11,7 @@ TEST(PointerValidationTest, TestNonValidPtr) {
 }
 
 TEST(PointerValidationTest, TestValidPtr) {
-  int a = 1;
+  uint64_t a = 1;
   EXPECT_TRUE(is_valid(reinterpret_cast<uint64_t>(&a)));
 }
 }  // namespace kotlin_tracer
