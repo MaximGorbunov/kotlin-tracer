@@ -9,8 +9,14 @@ namespace kotlin_tracer {
 class JVMCodeCache {
  public:
   explicit JVMCodeCache(const std::unordered_map<std::string, VMTypeEntry> &types) {
-    auto const &compiledMethodType = getIfContains(types, "nmethod");
-    compiledMethodFiled = getIfContains(*compiledMethodType.fields, "_method");
+    if (contains(types, "CompiledMethod")) {
+      auto const &compiledMethodType = getIfContains(types, "CompiledMethod");
+      compiledMethodFiled = getIfContains(*compiledMethodType.fields, "_method");
+
+    } else {
+      auto const &compiledMethodType = getIfContains(types, "nmethod");
+      compiledMethodFiled = getIfContains(*compiledMethodType.fields, "_method");
+    }
     const auto &methodType = getIfContains(types, "Method");
     constMethodField = getIfContains(*methodType.fields, "_constMethod");
     const auto &constMethodType = getIfContains(types, "ConstMethod");
@@ -67,6 +73,11 @@ class JVMCodeCache {
       return map.at(key);
     }
     throw std::runtime_error(key + " not found in vm structs");
+  }
+
+  template<typename T>
+  inline bool contains(const std::unordered_map<std::string, T> &map, const std::string &key) {
+    return map.contains(key);
   }
 };
 } // kotlin_tracer
