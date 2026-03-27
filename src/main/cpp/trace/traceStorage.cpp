@@ -1,9 +1,13 @@
 #include "traceStorage.hpp"
 
-#include <sys/resource.h>
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
+#include <mach/thread_act.h>
+#include <mach/thread_info.h>
 #include <memory>
-#include <utility>
+#include <sys/resource.h>
 #include <thread>
+#include <utility>
 
 #include "../utils/log.h"
 
@@ -16,14 +20,17 @@
 namespace kotlin_tracer {
 using std::shared_ptr, std::make_shared, std::unique_ptr, std::make_unique, std::list;
 
-TraceStorage::TraceStorage(
-) : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
-    processed_map_(std::make_unique<TraceMap>()),
-    ongoing_trace_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, TraceInfo>>()),
-    child_coroutines_map_(std::make_unique<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
-    coroutine_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, shared_ptr<CoroutineInfo>>>()),
-    gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()),
-    active_(true) {
+TraceStorage::TraceStorage()
+    : raw_list_(std::make_unique<ConcurrentList<shared_ptr<RawCallTraceRecord>>>()),
+      processed_map_(std::make_unique<TraceMap>()),
+      ongoing_trace_info_map_(std::make_unique<ConcurrentCleanableMap<jlong, TraceInfo>>()),
+      child_coroutines_map_(
+          std::make_unique<
+              ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>()),
+      coroutine_info_map_(
+          std::make_unique<ConcurrentCleanableMap<jlong, shared_ptr<CoroutineInfo>>>()),
+      gc_events_(std::make_unique<ConcurrentList<shared_ptr<GCEvent>>>()),
+      active_(true) {
   cleaner_thread_ = make_unique<std::thread>([this]() {
     std::chrono::seconds sleep_time{15};
     while (active_.test(std::memory_order_relaxed)) {
@@ -44,12 +51,11 @@ TraceStorage::~TraceStorage() {
   logDebug("Cleaning trace storage finished");
 }
 
-void TraceStorage::addRawTrace(TraceTime time, unique_ptr<AsyncTrace> trace,
-                               pthread_t thread, int64_t coroutine_id) {
+void TraceStorage::addRawTrace(TraceTime time, unique_ptr<AsyncTrace> trace, int64_t coroutine_id) {
   auto record = std::make_shared<RawCallTraceRecord>();
   record->time.set(time.get());
+  record->thread = trace->thread_id;
   record->trace = std::move(trace);
-  record->thread = thread;
   record->trace_count = record->trace->size;
   record->coroutine_id = coroutine_id;
   raw_list_->push_back(record);
@@ -59,7 +65,8 @@ shared_ptr<RawCallTraceRecord> TraceStorage::removeRawTraceHeader() {
   return raw_list_->pop_front();
 }
 
-void TraceStorage::addProcessedTrace(jlong coroutine_id, const shared_ptr<ProcessedTraceRecord> &record) {
+void TraceStorage::addProcessedTrace(jlong coroutine_id,
+                                     const shared_ptr<ProcessedTraceRecord>& record) {
   if (processed_map_->contains(coroutine_id)) {
     processed_map_->at(coroutine_id)->push_back(record);
   } else {
@@ -69,38 +76,46 @@ void TraceStorage::addProcessedTrace(jlong coroutine_id, const shared_ptr<Proces
   }
 }
 
-bool TraceStorage::addOngoingTraceInfo(const TraceInfo &trace_info) {
+bool TraceStorage::addOngoingTraceInfo(const TraceInfo& trace_info) {
   return ongoing_trace_info_map_->insert(trace_info.coroutine_id, trace_info);
 }
 
-TraceInfo &TraceStorage::findOngoingTraceInfo(const jlong &coroutine_id) {
+TraceInfo& TraceStorage::findOngoingTraceInfo(const jlong& coroutine_id) {
   return ongoing_trace_info_map_->get(coroutine_id);
 }
 
-void TraceStorage::removeOngoingTraceInfo(const jlong &coroutine_id) {
+void TraceStorage::removeOngoingTraceInfo(const jlong& coroutine_id) {
   ongoing_trace_info_map_->erase(coroutine_id);
 }
 
-void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo> &suspension_info) {
+void TraceStorage::addSuspensionInfo(const shared_ptr<SuspensionInfo>& suspension_info) {
   auto coroutine_info = coroutine_info_map_->at(suspension_info->coroutine_id);
   coroutine_info->suspensions_list->push_back(suspension_info);
 }
 
 void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
   auto coroutine_info = std::make_shared<CoroutineInfo>(
-      currentTimeNs(),
-      0,
-      0,
-      0,
-      0,
-      0,
-      rusage{},
+      currentTimeNs(), TraceTime{0}, currentTimeNs(), 0, 0, 0, 0, 0, rusage{},
       std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>());
+#ifdef __APPLE__
+  thread_basic_info_data_t info = {};
+  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+  mach_port_t thread = mach_thread_self();
+
+  kern_return_t kr = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
+  if (kr == KERN_SUCCESS) {
+    coroutine_info->last_rusage.ru_stime.tv_sec = info.system_time.seconds;
+    coroutine_info->last_rusage.ru_stime.tv_usec = info.system_time.microseconds;
+    coroutine_info->last_rusage.ru_utime.tv_sec = info.user_time.seconds;
+    coroutine_info->last_rusage.ru_utime.tv_usec = info.user_time.microseconds;
+  }
+  mach_port_deallocate(mach_task_self(), thread);
+#endif
+#ifdef __linux__
   getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
-  coroutine_info_map_->insert(
-      coroutine_id,
-      coroutine_info
-);
+#endif
+  coroutine_info->last_thread = std::this_thread::get_id();
+  coroutine_info_map_->insert(coroutine_id, coroutine_info);
 }
 
 shared_ptr<TraceStorage::CoroutineInfo> TraceStorage::getCoroutineInfo(jlong coroutine_id) const {
@@ -112,12 +127,11 @@ shared_ptr<TraceStorage::CoroutineInfo> TraceStorage::getCoroutineInfo(jlong cor
 }
 
 shared_ptr<SuspensionInfo> TraceStorage::getLastSuspensionInfo(jlong coroutine_id) {
-  std::function<bool(shared_ptr<SuspensionInfo>)>
-      firstNonEndedSuspensionPredicate = [](const shared_ptr<SuspensionInfo> &suspensionInfo) {
-    return suspensionInfo->end == 0;
-  };
+  std::function<bool(shared_ptr<SuspensionInfo>)> firstNonEndedSuspensionPredicate =
+      [](const shared_ptr<SuspensionInfo>& suspensionInfo) { return suspensionInfo->end == 0; };
   if (coroutine_info_map_->contains(coroutine_id)) {
-    return coroutine_info_map_->get(coroutine_id)->suspensions_list->find(firstNonEndedSuspensionPredicate);
+    return coroutine_info_map_->get(coroutine_id)
+        ->suspensions_list->find(firstNonEndedSuspensionPredicate);
   } else {
     return nullptr;
   }
@@ -172,11 +186,10 @@ void TraceStorage::gcFinish() {
   gc_events_->push_back(gc_event);
 }
 
-void TraceStorage::findGcEvents(
-    const TraceTime &start,
-    const TraceTime &stop,
-    const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
-  std::function<bool(shared_ptr<GCEvent>)> filter = [start, stop](const shared_ptr<GCEvent>& event) {
+void TraceStorage::findGcEvents(const TraceTime& start, const TraceTime& stop,
+                                const std::function<void(shared_ptr<GCEvent>)>& for_each) const {
+  std::function<bool(shared_ptr<GCEvent>)> filter = [start,
+                                                     stop](const shared_ptr<GCEvent>& event) {
     return event->start >= start && event->end <= stop;
   };
   gc_events_->forEachFiltered(filter, for_each);

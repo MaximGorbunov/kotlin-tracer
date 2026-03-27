@@ -1,17 +1,17 @@
 #ifndef KOTLIN_TRACER_TRACESTORAGE_H
 #define KOTLIN_TRACER_TRACESTORAGE_H
 
+#include <jni.h>
 #include <list>
 #include <memory>
 #include <string>
-#include <jni.h>
+#include <sys/resource.h>
 #include <thread>
 #include <utility>
-#include <sys/resource.h>
 
+#include "../profiler/model/trace.hpp"
 #include "concurrentCollections/concurrentList.h"
 #include "concurrentCollections/concurrentMap.h"
-#include "../profiler/model/trace.hpp"
 
 namespace kotlin_tracer {
 class TraceStorage {
@@ -20,6 +20,8 @@ class TraceStorage {
   ~TraceStorage();
 
   struct CoroutineInfo {
+    TraceTime start;
+    TraceTime end;
     TraceTime last_resume;
     TraceTime wall_clock_running_time{0};
     TraceTime cpu_user_clock_running_time_us{0};
@@ -27,24 +29,24 @@ class TraceStorage {
     uint64_t voluntary_switches{0};
     uint64_t involuntary_switches{0};
     rusage last_rusage;
+    std::thread::id last_thread;
     std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> suspensions_list;
     CoroutineInfo(
-        const TraceTime &a_last_resume,
-        long long a_wall_clock_running_time,
-        long long a_cpu_user_clock_running_time_us,
-        long long a_cpu_system_clock_running_time_us,
-        uint64_t a_voluntary_switches,
-        uint64_t a_involuntary_switches,
-        rusage a_last_rusage,
-        std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> a_suspensions_list
-    ) : last_resume(a_last_resume),
-        wall_clock_running_time(a_wall_clock_running_time),
-        cpu_user_clock_running_time_us(a_cpu_user_clock_running_time_us),
-        cpu_system_clock_running_time_us(a_cpu_system_clock_running_time_us),
-        voluntary_switches(a_voluntary_switches),
-        involuntary_switches(a_involuntary_switches),
-        last_rusage(a_last_rusage),
-        suspensions_list(std::move(a_suspensions_list)) {}
+        const TraceTime& _start, const TraceTime& _end, const TraceTime& a_last_resume,
+        long long a_wall_clock_running_time, long long a_cpu_user_clock_running_time_us,
+        long long a_cpu_system_clock_running_time_us, uint64_t a_voluntary_switches,
+        uint64_t a_involuntary_switches, rusage a_last_rusage,
+        std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> a_suspensions_list)
+        : start(_start),
+          end(_end),
+          last_resume(a_last_resume),
+          wall_clock_running_time(a_wall_clock_running_time),
+          cpu_user_clock_running_time_us(a_cpu_user_clock_running_time_us),
+          cpu_system_clock_running_time_us(a_cpu_system_clock_running_time_us),
+          voluntary_switches(a_voluntary_switches),
+          involuntary_switches(a_involuntary_switches),
+          last_rusage(a_last_rusage),
+          suspensions_list(std::move(a_suspensions_list)) {}
   };
 
   struct GCEvent {
@@ -55,16 +57,15 @@ class TraceStorage {
   typedef std::shared_ptr<ConcurrentList<std::shared_ptr<ProcessedTraceRecord>>> Traces;
   typedef ConcurrentCleanableMap<jlong, Traces> TraceMap;
 
-  void addRawTrace(TraceTime t_time, std::unique_ptr<AsyncTrace> trace,
-                   pthread_t thread, int64_t coroutine_id);
-  void addProcessedTrace(jlong coroutine_id, const std::shared_ptr<ProcessedTraceRecord> &record);
+  void addRawTrace(TraceTime time, std::unique_ptr<AsyncTrace> trace, int64_t coroutine_id);
+  void addProcessedTrace(jlong coroutine_id, const std::shared_ptr<ProcessedTraceRecord>& record);
   [[nodiscard]] Traces getProcessedTraces(jlong coroutine_id) const;
-  bool addOngoingTraceInfo(const TraceInfo &trace_info);
-  void addSuspensionInfo(const std::shared_ptr<SuspensionInfo> &suspension_info);
+  bool addOngoingTraceInfo(const TraceInfo& trace_info);
+  void addSuspensionInfo(const std::shared_ptr<SuspensionInfo>& suspension_info);
   std::shared_ptr<SuspensionInfo> getLastSuspensionInfo(jlong coroutine_id);
   [[nodiscard]] std::shared_ptr<CoroutineInfo> getCoroutineInfo(jlong coroutine_id) const;
-  void removeOngoingTraceInfo(const jlong &coroutine_id);
-  TraceInfo &findOngoingTraceInfo(const jlong &coroutine_id);
+  void removeOngoingTraceInfo(const jlong& coroutine_id);
+  TraceInfo& findOngoingTraceInfo(const jlong& coroutine_id);
   std::shared_ptr<RawCallTraceRecord> removeRawTraceHeader();
   [[nodiscard]] std::shared_ptr<ConcurrentList<jlong>> getChildCoroutines(jlong coroutine_id) const;
   void addChildCoroutine(jlong coroutine_id, jlong parent_coroutine_id);
@@ -73,15 +74,17 @@ class TraceStorage {
   void createCoroutineInfo(jlong coroutine_id);
   void gcStart();
   void gcFinish();
-  void findGcEvents(const TraceTime &start,
-                    const TraceTime &stop,
-                    const std::function<void(std::shared_ptr<GCEvent>)> &for_each) const;
+  void findGcEvents(const TraceTime& start, const TraceTime& stop,
+                    const std::function<void(std::shared_ptr<GCEvent>)>& for_each) const;
+
  private:
   std::unique_ptr<ConcurrentList<std::shared_ptr<RawCallTraceRecord>>> raw_list_;
   std::unique_ptr<TraceMap> processed_map_;
   std::unique_ptr<ConcurrentCleanableMap<jlong, TraceInfo>> ongoing_trace_info_map_;
-  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>> child_coroutines_map_;
-  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<CoroutineInfo>>> coroutine_info_map_;
+  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<ConcurrentList<jlong>>>>
+      child_coroutines_map_;
+  std::unique_ptr<ConcurrentCleanableMap<jlong, std::shared_ptr<CoroutineInfo>>>
+      coroutine_info_map_;
   std::unique_ptr<ConcurrentList<std::shared_ptr<GCEvent>>> gc_events_;
   std::atomic_flag active_;
   std::unique_ptr<std::thread> cleaner_thread_;
@@ -89,6 +92,6 @@ class TraceStorage {
   void mark_for_clean();
   void clean();
 };
-}
+}  // namespace kotlin_tracer
 
-#endif // KOTLIN_TRACER_TRACESTORAGE_H
+#endif  // KOTLIN_TRACER_TRACESTORAGE_H

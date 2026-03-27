@@ -1,11 +1,11 @@
 #ifndef KOTLIN_TRACER_CONCURRENTVECTOR_H
 #define KOTLIN_TRACER_CONCURRENTVECTOR_H
 
-#include <shared_mutex>
-#include <list>
-#include <functional>
-#include <mutex>
 #include <atomic>
+#include <functional>
+#include <list>
+#include <mutex>
+#include <shared_mutex>
 
 namespace kotlin_tracer {
 template<typename T>
@@ -15,20 +15,21 @@ class ConcurrentVector {
   typedef std::unique_lock<std::shared_mutex> write_lock;
   std::vector<T> vector_;
   std::shared_mutex vector_mutex_;
+
  public:
   ConcurrentVector() : vector_(), vector_mutex_() {}
 
-  void push_back(const T &value) {
+  void push_back(const T& value) {
     write_lock guard(vector_mutex_);
     vector_.push_back(value);
   }
 
-  void move_back(T &value) {
+  void move_back(T& value) {
     write_lock guard(vector_mutex_);
     vector_.push_back(std::move(value));
   }
 
-  T &at(size_t id) {
+  T& at(size_t id) {
     read_lock guard(vector_mutex_);
     return vector_.at(id);
   }
@@ -38,17 +39,22 @@ class ConcurrentVector {
     return vector_.size();
   }
 
-  void for_each(const std::function<void(T)> &lambda) {
+  void for_each(const std::function<void(T)>& lambda) {
     read_lock guard(vector_mutex_);
-    for (auto &element : vector_) {
+    for (auto& element : vector_) {
       lambda(element);
     }
   }
 
-  void read(const std::function<void(std::vector<T>*)> &lambda) {
+  void read(const std::function<void(std::vector<T>*)>& lambda) {
     read_lock guard(vector_mutex_);
     lambda(&vector_);
   }
+
+  void reserve(size_t size) {
+    write_lock guard(vector_mutex_);
+    vector_.reserve(size);
+  }
 };
-}
-#endif //KOTLIN_TRACER_CONCURRENTVECTOR_H
+}  // namespace kotlin_tracer
+#endif  // KOTLIN_TRACER_CONCURRENTVECTOR_H

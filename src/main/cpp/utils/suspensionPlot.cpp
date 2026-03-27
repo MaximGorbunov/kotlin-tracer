@@ -1,82 +1,18 @@
 #include "suspensionPlot.hpp"
-#include <string>
+
+#include <atomic>
 #include <fstream>
 #include <list>
-#include <atomic>
-#include <sstream>
+#include <string>
 #include <utility>
 
 #include "log.h"
+#include "protos/perfetto/trace/trace.pb.h"
 
 namespace kotlin_tracer {
-using std::string, std::unique_ptr, std::shared_ptr, std::chrono::duration_cast, std::chrono::milliseconds,
-      std::chrono::nanoseconds;
-static unique_ptr<string> top_half = std::make_unique<string>(
-    "<!DOCTYPE html>\n"
-    "<html>\n"
-    "<head>\n"
-    "    <script src='https://cdn.plot.ly/plotly-2.24.1.min.js'></script>\n"
-    "</head>\n"
-    "<body>\n"
-    "<div id='graph'></div>\n"
-    "</body>\n"
-    "<script>\n"
-    "  var gd = document.getElementById('myDiv');\n"
-    "  var data = ["
-    "    {"
-    "      name: 'Suspensions',"
-    "      type: 'icicle',"
-    "      labels: [],"
-    "      parents: [],"
-    "      values: [],"
-    "      tiling: {"
-    "        orientation: 'v'"
-    "      },"
-    "      root: {"
-    "        color: 'green'"
-    "      },"
-    "      sort: false,"
-    "      marker: {"
-    "        colorbar: {"
-    "          ticksuffix: 'ms'"
-    "        }"
-    "      }"
-    "    }"
-    "  ];\n"
-    "  var layout = {"
-    "    title: {"
-    "      text: 'Suspensions'"
-    "    },"
-    "    showlegend: true"
-    "  };\n"
-);
-static unique_ptr<string> bottom_half = std::make_unique<string>(
-    "    Plotly.newPlot('graph', data, layout);"
-    "</script>\n"
-    "</html>\n"
-);
-
-static inline std::unique_ptr<std::string> printSuspension(
-    const shared_ptr<SuspensionInfo> &suspension,
-    std::ofstream &file,
-    const std::string &parent
-) {
-  std::stringstream stack_trace_stream;
-  auto suspendTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds((suspension->end - suspension->start).get()));
-  for (auto &frame : *suspension->suspension_stack_trace) {
-    stack_trace_stream << *frame->frame << "<br>";
-  }
-  auto stack_trace = std::make_unique<string>(stack_trace_stream.str());
-  file << "data[0].labels.push('" + *stack_trace + "');\n";
-  file << "data[0].parents.push('" + parent + "');\n";
-  if (suspendTime.count() >= 0) {
-    file << "data[0].values.push(" + std::to_string(suspendTime.count()) + ");\n";
-  } else {
-    file << "data[0].values.push(-1);\n";
-  }
-  return stack_trace;
-}
+struct Level;
+using std::string, std::unique_ptr, std::shared_ptr, std::chrono::duration_cast,
+    std::chrono::milliseconds, std::chrono::nanoseconds;
 
 struct TraceCount;
 struct Level {
@@ -90,165 +26,259 @@ struct TraceCount {
   unique_ptr<Level> next;
 };
 
-static void printTraceLevel(Level *level, std::ofstream &file, const std::string &parent) {
-  if (level != nullptr) {
-    for (const auto &item : level->traces) {
-      auto trace_name = "_[" + std::to_string(item.id) + "]_" + *item.method;
-      file << "data[0].labels.push('" + trace_name + "');\n";
-      file << "data[0].parents.push('" + parent + "');\n";
-      file << "data[0].values.push(" + std::to_string(item.count) + ");\n";
-      printTraceLevel(item.next.get(), file, trace_name);
-    }
+static inline void add_suspension(const shared_ptr<SuspensionInfo>& suspension,
+                                  uint64_t* track_counter, const string& coroutine_name,
+                                  perfetto::protos::Trace& trace, uint32_t sequence_id,
+                                  const TraceTime& trace_end_time) {
+  auto track_id = ++*track_counter;
+  auto packet = trace.add_packet();
+  packet->set_trusted_packet_sequence_id(sequence_id);
+  auto track_descriptor = packet->mutable_track_descriptor();
+  track_descriptor->set_name(coroutine_name);
+  track_descriptor->set_uuid(track_id);
+  // start
+  packet = trace.add_packet();
+  packet->set_timestamp(suspension->start.value);  // nanos
+  auto track_event = packet->mutable_track_event();
+  track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_BEGIN);
+  track_event->set_name("Suspension");
+  track_event->set_track_uuid(track_id);
+  packet->set_trusted_packet_sequence_id(sequence_id);
+
+  // end
+  packet = trace.add_packet();
+  track_event = packet->mutable_track_event();
+  track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_END);
+  track_event->set_track_uuid(track_id);
+  if (suspension->end.value != 0) {
+    packet->set_timestamp(suspension->end.value);  // nanos
+  } else {
+    packet->set_timestamp(trace_end_time.value);
+  }
+  packet->set_trusted_packet_sequence_id(sequence_id);
+  auto event_callstack = track_event->mutable_callstack();
+  for (auto& frame : *suspension->suspension_stack_trace) {
+    auto event_callstack_frame = event_callstack->add_frames();
+    auto method = *frame->base + ":" + *frame->frame;
+    event_callstack_frame->set_function_name(method);
   }
 }
 
-static std::atomic_int counter = 0;
-
-static void printTraces(
-    const TraceStorage::Traces &traces,
-    std::ofstream &file,
-    const string &parent,
-    const TraceInfo &trace_info) {
-  unique_ptr<Level> root = std::make_unique<Level>(Level{});
-
-  std::function<void(shared_ptr<ProcessedTraceRecord>)> func = [&root, &trace_info](
-      const shared_ptr<ProcessedTraceRecord> &trace_record) {
-    Level *current_level = root.get();
-    for (auto frame = trace_record->stack_trace->end(); frame != trace_record->stack_trace->begin();) {
-      --frame;
-      if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
-        auto method = std::make_unique<string>(*(*frame)->base + ":" + *(*frame)->frame);
-        bool found = false;
-        for (auto &trace_count : current_level->traces) {
-          if (*trace_count.method == *method) {
-            found = true;
-            ++trace_count.count;
-            current_level = trace_count.next.get();
-          }
-        }
-        if (!found) {
-          auto next_level = std::make_unique<Level>(Level{});
-          current_level->traces.push_back(TraceCount{
-            ++counter,
-            std::move(method),
-            1L,
-            std::move(next_level)});
-          current_level = current_level->traces.back().next.get();
-        }
-      }
-    }
-  };
-  traces->forEach(func);
-  printTraceLevel(root.get(), file, parent);
-}
-
-static void print_trace_info(const string &parent,
-                             const TraceInfo &trace_info,
-                             jlong coroutine_id,
-                             std::ofstream &file,
-                             const TraceStorage &storage) {
-  auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
-  if (coroutine_info == nullptr) {
-    logDebug("Coroutine:" + std::to_string(coroutine_id) + "not found");
-    throw std::runtime_error("Coroutine:" + std::to_string(coroutine_id) + "not found");
-  }
-  auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
-  auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::nanoseconds(coroutine_info->wall_clock_running_time.get()));
-  auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds(coroutine_info->cpu_user_clock_running_time_us.get()));
-  auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-      std::chrono::microseconds(coroutine_info->cpu_system_clock_running_time_us.get()));
-
-  file << "data[0].labels.push('" + coroutineName + "');\n";
-  file << "data[0].parents.push('" + parent + "');\n";
-  file << "data[0].values.push(0);\n";
-
-  auto running_span_name = "'running#" + std::to_string(coroutine_id) + "'";
-  file << "data[0].labels.push(" + running_span_name + ");\n";
-  file << "data[0].parents.push('" + coroutineName + "');\n";
-  file << "data[0].values.push(" + std::to_string(running_wall_clock_time.count()) + ");\n";
-
-  file << "data[0].labels.push('running_cpu_user#" + std::to_string(coroutine_id) + "');\n";
-  file << "data[0].parents.push(" + running_span_name + ");\n";
-  file << "data[0].values.push(" + std::to_string(running_cpu_user_clock_time.count()) + ");\n";
-
-  file << "data[0].labels.push('running_cpu_system#" + std::to_string(coroutine_id) + "');\n";
-  file << "data[0].parents.push(" + running_span_name + ");\n";
-  file << "data[0].values.push(" + std::to_string(running_cpu_system_clock_time.count()) + ");\n";
-
-  file << "data[0].labels.push('voluntary_switches#" + std::to_string(coroutine_id) + "');\n";
-  file << "data[0].parents.push(" + running_span_name + ");\n";
-  file << "data[0].values.push(" + std::to_string(coroutine_info->voluntary_switches) + ");\n";
-
-  file << "data[0].labels.push('involuntary_switches#" + std::to_string(coroutine_id) + "');\n";
-  file << "data[0].parents.push(" + running_span_name + ");\n";
-  file << "data[0].values.push(" + std::to_string(coroutine_info->involuntary_switches) + ");\n";
-
-  auto traces = storage.getProcessedTraces(coroutine_id);
-  if (traces != nullptr) {
-    printTraces(traces, file, "running#" + std::to_string(coroutine_id), trace_info);
-  }
-
-  std::list<std::shared_ptr<SuspensionInfo>> chain;
-  shared_ptr<SuspensionInfo> lastSuspensionInfo;
-  std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint =
-      [&file, &coroutineName, &chain, &lastSuspensionInfo](const shared_ptr<SuspensionInfo> &suspension) {
-        if (lastSuspensionInfo != nullptr && suspension->start < lastSuspensionInfo->end) {
-          chain.push_front(suspension);
-        } else {
-          if (!chain.empty()) {
-            auto chain_parent = std::make_unique<string>(coroutineName);
-            while (!chain.empty()) {
-              auto current = chain.front();
-              chain.pop_front();
-              chain_parent = printSuspension(current, file, *chain_parent);
+static void add_call_stack(const TraceStorage::Traces& traces, const TraceInfo& trace_info,
+                           perfetto::protos::Trace& trace, uint32_t sequence_id,
+                           uint64_t track_id) {
+  std::function<void(shared_ptr<ProcessedTraceRecord>)> func =
+      [&trace_info, &trace, &track_id,
+       &sequence_id](const shared_ptr<ProcessedTraceRecord>& trace_record) {
+        if (trace_record->stack_trace->size() > 0) {
+          auto packet = trace.add_packet();
+          packet->set_timestamp(trace_record->time.get());  // nanos
+          auto track_event = packet->mutable_track_event();
+          track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_INSTANT);
+          track_event->set_name("Stack trace");
+          track_event->set_track_uuid(track_id);
+          packet->set_trusted_packet_sequence_id(sequence_id);
+          auto track_event_callstack = track_event->mutable_callstack();
+          for (auto frame = trace_record->stack_trace->begin();
+               frame != trace_record->stack_trace->end(); ++frame) {
+            if (trace_record->time >= trace_info.start && trace_record->time <= trace_info.end) {
+              auto method = *(*frame)->base + ":" + *(*frame)->frame;
+              auto track_event_callstack_frame = track_event_callstack->add_frames();
+              track_event_callstack_frame->set_function_name(method);
             }
           }
-          printSuspension(suspension, file, coroutineName);
         }
-        lastSuspensionInfo = suspension;
       };
-  coroutine_info->suspensions_list->forEach(suspensionPrint);
-  if (storage.containsChildCoroutineStorage(coroutine_id)) {
-    std::function<void(jlong)> childCoroutinePrint =
-        [&file, &coroutineName, &storage, &trace_info](jlong childCoroutine) {
-          print_trace_info(coroutineName, trace_info, childCoroutine, file, storage);
-        };
-    auto children = storage.getChildCoroutines(coroutine_id);
-    children->forEach(childCoroutinePrint);
-  }
+  traces->forEach(func);
 }
 
-static void print_gc_info(const string &parent,
-                          const TraceInfo &trace_info,
-                          std::ofstream &file,
-                          const TraceStorage &storage) {
-  int gc_event_counter = 0;
+static void add_gc_info(const TraceInfo& trace_info, const TraceStorage& storage,
+                        uint64_t* track_counter, perfetto::protos::Trace& trace,
+                        uint32_t sequence_id) {
   std::function<void(shared_ptr<TraceStorage::GCEvent>)> for_each =
-      [&gc_event_counter, &parent, &file](const shared_ptr<TraceStorage::GCEvent> &gc_event) {
-        auto gc_time = gc_event->end - gc_event->start;
-        auto running_time = duration_cast<milliseconds>(nanoseconds(gc_time.get()));
-        file << "data[0].labels.push('#" + std::to_string(++gc_event_counter) + "GC');\n";
-        file << "data[0].parents.push('" + parent + "');\n";
-        file << "data[0].values.push(" + std::to_string(running_time.count()) + ");\n";
+      [&track_counter, &trace, &sequence_id](const shared_ptr<TraceStorage::GCEvent>& gc_event) {
+        auto track_id = ++*track_counter;
+        auto packet = trace.add_packet();
+        packet->set_trusted_packet_sequence_id(sequence_id);
+        auto track_descriptor = packet->mutable_track_descriptor();
+        track_descriptor->set_name("GC");
+        track_descriptor->set_uuid(track_id);
+        // start
+        packet = trace.add_packet();
+        packet->set_timestamp(gc_event->start.value);  // nanos
+        auto track_event = packet->mutable_track_event();
+        track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_BEGIN);
+        track_event->set_name("GC");
+        track_event->set_track_uuid(track_id);
+        packet->set_trusted_packet_sequence_id(sequence_id);
+
+        // end
+        packet = trace.add_packet();
+        packet->set_timestamp(gc_event->end.value);  // nanos
+        track_event = packet->mutable_track_event();
+        track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_END);
+        track_event->set_track_uuid(track_id);
+        packet->set_trusted_packet_sequence_id(sequence_id);
       };
   storage.findGcEvents(trace_info.start, trace_info.end, for_each);
 }
 
-void plot(const string &path, const TraceInfo &trace_info, const TraceStorage &storage) {
-  std::ofstream file;
-  file.open(path);
-  if (file.is_open()) {
-    file << *top_half;
-    auto suspensions = storage.getCoroutineInfo(trace_info.coroutine_id);
-    print_trace_info("", trace_info, trace_info.coroutine_id, file, storage);
-    auto const coroutineName = string("coroutine#" + std::to_string(trace_info.coroutine_id));
-    print_gc_info(coroutineName, trace_info, file, storage);
-    file << *bottom_half;
-  } else {
-    throw std::runtime_error("Failed to open file" + path);
+static void add_trace_info(const TraceInfo& trace_info, const TraceStorage& storage,
+                           uint64_t* track_counter, perfetto::protos::Trace& trace,
+                           uint32_t sequence_id) {
+  struct coroutine_queue_item {
+    jlong coroutine_id;
+    jlong parent_coroutine_id;
+  };
+  std::vector<coroutine_queue_item> coroutines{};
+  coroutines.push_back(coroutine_queue_item{trace_info.coroutine_id, 0});
+  std::set<jlong> visited_coroutines{};
+  while (!coroutines.empty()) {
+    auto [coroutine_id, parent_coroutine_id] = coroutines.front();
+    visited_coroutines.insert(coroutine_id);
+    coroutines.erase(coroutines.begin());
+    auto coroutine_info = storage.getCoroutineInfo(coroutine_id);
+    if (coroutine_info == nullptr) {
+      logDebug("Coroutine:" + std::to_string(coroutine_id) + "not found");
+      // throw std::runtime_error("Coroutine:" + std::to_string(coroutine_id) + "not found");
+      continue;
+    }
+    auto const coroutineName = string("coroutine#" + std::to_string(coroutine_id));
+    auto running_wall_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::nanoseconds(coroutine_info->wall_clock_running_time.get()));
+    auto running_cpu_user_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::microseconds(coroutine_info->cpu_user_clock_running_time_us.get()));
+    auto running_cpu_system_clock_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::microseconds(coroutine_info->cpu_system_clock_running_time_us.get()));
+
+    auto track_id = ++*track_counter;
+    auto packet = trace.add_packet();
+    packet->set_trusted_packet_sequence_id(sequence_id);
+    auto track_descriptor = packet->mutable_track_descriptor();
+    track_descriptor->set_name(coroutineName);
+    track_descriptor->set_uuid(track_id);
+    // start
+    packet = trace.add_packet();
+    if (parent_coroutine_id == 0) {
+      packet->set_timestamp(trace_info.start.value);  // nanos
+    } else {
+      packet->set_timestamp(coroutine_info->start.value);
+    }
+    auto track_event = packet->mutable_track_event();
+    track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_BEGIN);
+    track_event->set_name(coroutineName);
+    track_event->set_track_uuid(track_id);
+    auto flow_ids = track_event->mutable_flow_ids();
+    if (parent_coroutine_id == 0) {
+      flow_ids->Add(coroutine_id);
+    } else {
+      flow_ids->Add(parent_coroutine_id);
+      flow_ids->Add(coroutine_id);
+    }
+    packet->set_trusted_packet_sequence_id(sequence_id);
+    auto wall_clock_time_annotation = track_event->add_debug_annotations();
+    wall_clock_time_annotation->set_name("Wall CPU time ms");
+    wall_clock_time_annotation->set_int_value(running_wall_clock_time.count());
+    auto user_clock_time_annotation = track_event->add_debug_annotations();
+    user_clock_time_annotation->set_name("User CPU time ms");
+    user_clock_time_annotation->set_int_value(running_cpu_user_clock_time.count());
+    auto system_clock_time_annotation = track_event->add_debug_annotations();
+    system_clock_time_annotation->set_name("System CPU time ms");
+    system_clock_time_annotation->set_int_value(running_cpu_system_clock_time.count());
+    if (coroutine_info->voluntary_switches == 0) {
+      auto voluntary_switches_annotation = track_event->add_debug_annotations();
+      voluntary_switches_annotation->set_name("Voluntary switches");
+      voluntary_switches_annotation->set_int_value(coroutine_info->voluntary_switches);
+    }
+    if (coroutine_info->involuntary_switches == 0) {
+      auto involountary_switches_annotation = track_event->add_debug_annotations();
+      involountary_switches_annotation->set_name("Involuntary switches");
+      involountary_switches_annotation->set_int_value(coroutine_info->involuntary_switches);
+    }
+
+    // end
+    packet = trace.add_packet();
+    if (parent_coroutine_id == 0) {
+      packet->set_timestamp(trace_info.end.value);  // nanos
+    } else {
+      packet->set_timestamp(coroutine_info->end.value);
+    }
+    track_event = packet->mutable_track_event();
+    track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_END);
+    track_event->set_track_uuid(track_id);
+    packet->set_trusted_packet_sequence_id(sequence_id);
+
+    auto traces = storage.getProcessedTraces(coroutine_id);
+    auto samples_track_id = ++*track_counter;
+    packet = trace.add_packet();
+    packet->set_trusted_packet_sequence_id(sequence_id);
+    track_descriptor = packet->mutable_track_descriptor();
+    track_descriptor->set_name("Samples");
+    track_descriptor->set_uuid(samples_track_id);
+    if (traces != nullptr) {
+      add_call_stack(traces, trace_info, trace, sequence_id, samples_track_id);
+    }
+    std::function<void(shared_ptr<SuspensionInfo>)> suspensionPrint =
+        [&track_counter, &trace, &sequence_id, &coroutineName,
+         &trace_info](const shared_ptr<SuspensionInfo>& suspension) {
+          add_suspension(suspension, track_counter, coroutineName, trace, sequence_id,
+                         trace_info.end);
+        };
+    coroutine_info->suspensions_list->forEach(suspensionPrint);
+    parent_coroutine_id = coroutine_id;
+    if (storage.containsChildCoroutineStorage(coroutine_id)) {
+      std::function<void(jlong)> child_coroutine_add =
+          [&coroutines, &parent_coroutine_id, &visited_coroutines](jlong child_coroutine) {
+            if (!visited_coroutines.contains(child_coroutine)) {
+              coroutines.push_back(coroutine_queue_item{child_coroutine, parent_coroutine_id});
+            }
+          };
+      auto children = storage.getChildCoroutines(coroutine_id);
+      children->forEach(child_coroutine_add);
+    }
   }
 }
 
+void write_perfetto(const std::string& path, const TraceInfo& trace_info,
+                    const TraceStorage& storage) {
+  perfetto::protos::Trace trace;
+  const uint32_t TRUSTED_SEQUENCE_ID = 1;
+  uint64_t track_counter = 0;
+
+  // Track descriptor
+  auto packet = trace.add_packet();
+  packet->set_trusted_packet_sequence_id(TRUSTED_SEQUENCE_ID);
+  auto track_descriptor = packet->mutable_track_descriptor();
+  track_descriptor->set_name("Trace");
+  uint64_t track_id = ++track_counter;
+  track_descriptor->set_uuid(track_id);
+
+  packet = trace.add_packet();
+  packet->set_timestamp(trace_info.start.value);  // nanos
+  auto track_event = packet->mutable_track_event();
+  track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_BEGIN);
+  track_event->set_name("Trace");
+  track_event->set_track_uuid(track_id);
+  auto add_debug_annotations = track_event->add_debug_annotations();
+  add_debug_annotations->set_name("Trace");
+  packet->set_trusted_packet_sequence_id(TRUSTED_SEQUENCE_ID);
+
+  // end
+  packet = trace.add_packet();
+  packet->set_timestamp(trace_info.end.value);  // nanos
+  track_event = packet->mutable_track_event();
+  track_event->set_type(perfetto::protos::TrackEvent_Type_TYPE_SLICE_END);
+  track_event->set_track_uuid(track_id);
+  packet->set_trusted_packet_sequence_id(TRUSTED_SEQUENCE_ID);
+
+  add_gc_info(trace_info, storage, &track_counter, trace, track_id);
+  add_trace_info(trace_info, storage, &track_counter, trace, TRUSTED_SEQUENCE_ID);
+
+  std::fstream output(path, std::ios::out | std::ios::trunc | std::ios::binary);
+
+  // Serialize the message and write it to the file
+  if (!trace.SerializeToOstream(&output)) {
+    std::cerr << "Failed to write perfetto trace" << std::endl;
+  }
+}
 }  // namespace kotlin_tracer

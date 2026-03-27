@@ -6,8 +6,8 @@
 #include <libunwind.h>
 
 #include "../../utils/log.h"
-#include "vm/jvm.hpp"
 #include "profiler/model/asyncTrace.hpp"
+#include "vm/jvm.hpp"
 
 namespace kotlin_tracer {
 
@@ -15,10 +15,14 @@ using std::string;
 
 #define REGISTER(reg) uc_mcontext->__ss.__##reg
 
-static inline void recover_frame(unw_cursor_t &cursor) {
+static inline bool is_pointer_in_stack(uint64_t ptr, uint64_t lo, uint64_t hi) {
+  return ptr >= lo && ptr < hi;
+}
+
+static inline void recover_frame(unw_cursor_t& cursor) {
   unw_word_t rbx;
   unw_get_reg(&cursor, UNW_X86_64_RBX, &rbx);
-  auto *ucontext = (ucontext_t *) rbx;
+  auto* ucontext = (ucontext_t*)rbx;
   unw_set_reg(&cursor, UNW_X86_64_RAX, ucontext->REGISTER(rax));
   unw_set_reg(&cursor, UNW_X86_64_RDX, ucontext->REGISTER(rdx));
   unw_set_reg(&cursor, UNW_X86_64_RCX, ucontext->REGISTER(rcx));
@@ -38,19 +42,18 @@ static inline void recover_frame(unw_cursor_t &cursor) {
   unw_set_reg(&cursor, UNW_X86_64_RSP, ucontext->REGISTER(rsp));
 }
 
-static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trace) {
+static inline void unwind_stack(ucontext_t* ucontext, JVM* jvm, AsyncTrace* trace,
+                                uint64_t stack_lo, uint64_t stack_hi) {
   unw_context_t context;
   unw_cursor_t cursor;
   unw_getcontext(&context);
   unw_init_local(&cursor, &context);
   unw_word_t ip, rbp, offset;
   char buf[256];
-  //Skip until _sigtramp
+  // Skip until _sigtramp
   while (unw_step(&cursor) > 0) {
     if (!unw_get_proc_name(&cursor, buf, sizeof(buf), &offset)) {
       if (strcmp(buf, "_sigtramp") == 0) {
-        // At x86_64 macos sets pointer to ucontext in RBX register
-        //  recover_frame(cursor);
         recover_frame(cursor);
         break;
       }
@@ -64,12 +67,12 @@ static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trac
 
   do {
     processed = false;
-    if (dladdr(reinterpret_cast<void *>(ip), &info)) {
+    if (dladdr(reinterpret_cast<void*>(ip), &info)) {
       trace->instructions[trace_index].instruction = static_cast<intptr_t>(ip);
       trace->instructions[trace_index].frame = rbp;
       trace->instructions[trace_index].java_frame = false;
       processed = true;
-    } else {
+    } else if (is_pointer_in_stack(rbp, stack_lo, stack_hi)) {
       auto jmethodId = jvm->getJMethodId(ip, rbp);
       trace->instructions[trace_index].instruction = reinterpret_cast<intptr_t>(jmethodId);
       trace->instructions[trace_index].frame = 0;
@@ -83,14 +86,16 @@ static inline void unwind_stack(ucontext_t *ucontext, JVM *jvm, AsyncTrace *trac
     // |    saved rbp            |
     // |_________________________|
     auto last_ip = ip;
-    ip = *reinterpret_cast<uint64_t *>(rbp + 8);
-    auto last_rbp = rbp;
-    rbp = *reinterpret_cast<uint64_t *>(rbp);
-    if (rbp < last_rbp || last_ip == ip || rbp == 0) break;
+    if (unw_step(&cursor) <= 0)
+      break;
+    unw_get_reg(&cursor, UNW_REG_IP, &ip);
+    unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp);
+    if (last_ip == ip || rbp == 0)
+      break;
     trace_index++;
   } while (processed && trace_index < trace->size);
   trace->size = trace_index;
 }
-}  // kotlin_tracer
-#endif  // defined(__APPLE__) && defined(__aarch64__)
-#endif //KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_APPLE_X86_64_INLINE_H_
+}  // namespace kotlin_tracer
+#endif  // defined(__APPLE__) && defined(__x86_64__)
+#endif  // KOTLIN_TRACER_SRC_MAIN_CPP_PROFILER_UNWIND_APPLE_X86_64_INLINE_H_

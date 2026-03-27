@@ -1,11 +1,11 @@
 #ifndef KOTLIN_TRACER_CONCURRENTLIST_H
 #define KOTLIN_TRACER_CONCURRENTLIST_H
 
-#include <shared_mutex>
-#include <list>
-#include <functional>
-#include <mutex>
 #include <atomic>
+#include <functional>
+#include <list>
+#include <mutex>
+#include <shared_mutex>
 
 namespace kotlin_tracer {
 template<typename T>
@@ -16,15 +16,16 @@ class ConcurrentList {
   std::list<T> list_;
   std::shared_mutex list_mutex_;
   std::atomic_int clean_until_;
+
  public:
   ConcurrentList() : list_(), list_mutex_(), clean_until_(0) {}
 
-  void push_back(const T &value) {
+  void push_back(const T& value) {
     write_lock guard(list_mutex_);
     list_.push_back(value);
   }
 
-  void push_front(const T &value) {
+  void push_front(const T& value) {
     write_lock guard(list_mutex_);
     list_.push_front(value);
   }
@@ -32,6 +33,11 @@ class ConcurrentList {
   bool empty() {
     read_lock guard(list_mutex_);
     return list_.empty();
+  }
+
+  std::list<T> snapshot() {
+    read_lock guard(list_mutex_);
+    return std::list(list_);
   }
 
   T pop_front() {
@@ -72,25 +78,25 @@ class ConcurrentList {
     return list_.size();
   }
 
-  void forEach(const std::function<void(T)> &lambda) {
+  void forEach(const std::function<void(T)>& lambda) {
     read_lock guard(list_mutex_);
-    for (auto &element : list_) {
+    for (auto& element : list_) {
       lambda(element);
     }
   }
 
-  void forEachFiltered(const std::function<bool(T)> &filter, const std::function<void(T)> &lambda) {
+  void forEachFiltered(const std::function<bool(T)>& filter, const std::function<void(T)>& lambda) {
     read_lock guard(list_mutex_);
-    for (auto &element : list_) {
+    for (auto& element : list_) {
       if (filter(element)) {
         lambda(element);
       }
     }
   }
 
-  T find(const std::function<bool(T)> &lambda) {
+  T find(const std::function<bool(T)>& lambda) {
     read_lock guard(list_mutex_);
-    for (auto &element : list_) {
+    for (auto& element : list_) {
       if (lambda(element)) {
         return element;
       }
@@ -111,5 +117,5 @@ class ConcurrentList {
     }
   }
 };
-}
-#endif //KOTLIN_TRACER_CONCURRENTLIST_H
+}  // namespace kotlin_tracer
+#endif  // KOTLIN_TRACER_CONCURRENTLIST_H

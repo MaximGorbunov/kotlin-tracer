@@ -1,5 +1,6 @@
 #include "jvmCodeCache.h"
 
+#include <atomic>
 #include <string>
 #include <sstream>
 #include "../utils/pointerValidation.h"

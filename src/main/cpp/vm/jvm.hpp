@@ -19,7 +19,9 @@ typedef struct threadInfo {
   const std::unique_ptr<std::string> name;
   const pthread_t id;
   std::atomic_int current_traces = 0;
-  threadInfo(std::unique_ptr<std::string> _name, pthread_t _id): name(std::move(_name)), id(_id), current_traces(0) {}
+    uint64_t stack_lo;
+    uint64_t stack_hi;
+  threadInfo(std::unique_ptr<std::string> _name, pthread_t _id, uint64_t _stack_lo, uint64_t _stack_hi): name(std::move(_name)), id(_id), current_traces(0), stack_lo(_stack_lo), stack_hi(_stack_hi) {}
 } ThreadInfo;
 
 typedef struct InstrumentationMetadata {
@@ -43,6 +45,7 @@ class JVM {
   bool isJavaFrame(uint64_t address);
   jmethodID getJMethodId(uint64_t address, uint64_t frame_pointer);
   const addr2Symbol::function_info *getNativeFunctionInfo(intptr_t address);
+  addr2Symbol::Addr2Symbol addr_2_symbol_;
 
  private:
   JavaVM* java_vm_;
@@ -51,7 +54,6 @@ class JVM {
   std::shared_ptr<ConcurrentList<std::shared_ptr<ThreadInfo>>> threads_;
   std::unordered_map<std::string, std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Field>>>> vm_structs_;
   std::unordered_map<std::string, VMTypeEntry> types_;
-  addr2Symbol::Addr2Symbol addr_2_symbol_;
   void resolveVMStructs();
   void resolveVMTypes();
 };

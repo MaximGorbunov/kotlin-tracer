@@ -53,6 +53,9 @@ Java_io_inst_CoroutineInstrumentator_coroutineSuspend(
 Java_io_inst_CoroutineInstrumentator_traceStart(
     JNIEnv *,
     __attribute__((unused)) jclass clazz, jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   traceStart(coroutine_id);
 }
 
@@ -61,6 +64,9 @@ Java_io_inst_CoroutineInstrumentator_traceEnd(
     JNIEnv *,
     __attribute__((unused)) jclass clazz,
     jlong coroutine_id) {
+  if (coroutine_id == -1) {
+    coroutine_id = static_cast<jlong>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
+  }
   traceEnd(coroutine_id);
 }
 }

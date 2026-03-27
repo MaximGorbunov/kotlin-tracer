@@ -9,7 +9,7 @@ namespace kotlin_tracer {
 class JVMCodeCache {
  public:
   explicit JVMCodeCache(const std::unordered_map<std::string, VMTypeEntry> &types) {
-    auto const &compiledMethodType = getIfContains(types, "CompiledMethod");
+    auto const &compiledMethodType = getIfContains(types, "nmethod");
     compiledMethodFiled = getIfContains(*compiledMethodType.fields, "_method");
     const auto &methodType = getIfContains(types, "Method");
     constMethodField = getIfContains(*methodType.fields, "_constMethod");

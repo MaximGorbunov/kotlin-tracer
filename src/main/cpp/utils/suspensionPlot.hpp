@@ -6,5 +6,6 @@
 
 namespace kotlin_tracer {
   void plot(const std::string &path, const TraceInfo &trace_info, const TraceStorage &storage);
+  void write_perfetto(const std::string &path, const TraceInfo &trace_info, const TraceStorage &storage);
 }
 #endif //KOTLIN_TRACER_SRC_MAIN_CPP_UTILS_SUSPENSIONPLOT_H_

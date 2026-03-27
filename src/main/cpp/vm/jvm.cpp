@@ -11,15 +11,17 @@ using std::shared_ptr, std::string, std::unordered_map;
 JVM::JVM(
     JavaVM *java_vm,
     std::unique_ptr<jvmtiEventCallbacks> callbacks
-) : java_vm_(java_vm), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()),
-    addr_2_symbol_() {
+) : java_vm_(java_vm), threads_(std::make_shared<ConcurrentList<std::shared_ptr<ThreadInfo>>>()) {
   jvmtiEnv *pJvmtiEnv = nullptr;
   this->java_vm_->GetEnv(reinterpret_cast<void **>(&pJvmtiEnv), JVMTI_VERSION_11);
   jvmti_env_ = pJvmtiEnv;
-  jvmtiCapabilities capabilities;
+  jvmtiCapabilities capabilities{};
   capabilities.can_generate_garbage_collection_events = 1;
   capabilities.can_generate_all_class_hook_events = 1;
-  jvmti_env_->AddCapabilities(&capabilities);
+  auto err = jvmti_env_->AddCapabilities(&capabilities);
+  if (err != JVMTI_ERROR_NONE) {
+    throw std::runtime_error("Error adding capabilities");
+  }
   jvmti_env_->SetEventCallbacks(callbacks.get(), sizeof(*callbacks));
   jvmti_env_->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH,
                                        nullptr);
@@ -49,6 +51,8 @@ void JVM::addCurrentThread(::jthread thread) {
   JNIEnv *env_id;
   java_vm_->GetEnv(reinterpret_cast<void **>(&env_id), JNI_VERSION_10);
   pthread_t currentThread = pthread_self();
+    auto stack_high = reinterpret_cast<uint64_t>(pthread_get_stackaddr_np(currentThread));
+    auto stack_lo= stack_high - pthread_get_stacksize_np(currentThread);
   jvmtiThreadInfo info{};
   auto err = jvmti_env_->GetThreadInfo(thread, &info);
   logDebug("Added thread: " + std::string(info.name));
@@ -56,7 +60,7 @@ void JVM::addCurrentThread(::jthread thread) {
     logError("Failed to get thead info:" + std::to_string(err));
     return;
   }
-  auto threadInfo = std::make_shared<ThreadInfo>(std::make_unique<string>(info.name), currentThread);
+  auto threadInfo = std::make_shared<ThreadInfo>(std::make_unique<string>(info.name), currentThread, stack_lo, stack_high);
   threads_->push_back(threadInfo);
 }
 

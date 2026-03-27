@@ -38,7 +38,7 @@ void JNICALL ClassFileLoadHook(
     jint *new_class_data_len,
     unsigned char **new_class_data
 ) {
-  agent->getInstrumentation()->instrument(jni_env,
+  agent->getInstrumentation()->instrument(jvmti_env, jni_env,
                                           name,
                                           class_data_len,
                                           class_data,
@@ -65,22 +65,47 @@ void JNICALL VMInit(
   agent->getInstrumentation()->setInstrumentationMetadata(std::move(metadata));
   // Install coroutine debug probes
   auto debug_probes = jni_env->FindClass("kotlinx/coroutines/debug/DebugProbes");
+    if (jni_env->ExceptionCheck()) {
+        jni_env->ExceptionDescribe();
+        jni_env->ExceptionClear();
+        throw runtime_error("kotlinx/coroutines/debug/DebugProbes failed to get class");
+    }
   if (debug_probes == nullptr) {
     throw runtime_error("kotlinx/coroutines/debug/DebugProbes not found");
   }
   auto install_method = jni_env->GetMethodID(debug_probes, "install", "()V");
+    if (jni_env->ExceptionCheck()) {
+        jni_env->ExceptionDescribe();
+        jni_env->ExceptionClear();
+        throw runtime_error(" failed to get method from debug probes");
+    }
   if (install_method == nullptr) {
     throw runtime_error("DebugProbes.install method not found");
   }
   auto instance_field = jni_env->GetStaticFieldID(debug_probes, "INSTANCE", "Lkotlinx/coroutines/debug/DebugProbes;");
+    if (jni_env->ExceptionCheck()) {
+        jni_env->ExceptionDescribe();
+        jni_env->ExceptionClear();
+        throw runtime_error("failed to get static field id  from debug probes");
+    }
   if (instance_field == nullptr) {
     throw runtime_error("DebugProbes.INSTANCE field not found");
   }
   auto instance = jni_env->GetStaticObjectField(debug_probes, instance_field);
+    if (jni_env->ExceptionCheck()) {
+        jni_env->ExceptionDescribe();
+        jni_env->ExceptionClear();
+        throw runtime_error("failed to get static field from debug probes");
+    }
   if (instance == nullptr) {
     throw runtime_error("DebugProbes.INSTANCE is null");
   }
   jni_env->CallVoidMethod(instance, install_method);
+    if (jni_env->ExceptionCheck()) {
+        jni_env->ExceptionDescribe();
+        jni_env->ExceptionClear();
+        throw runtime_error("failed to call static method from debug probes");
+    }
 
   agent->getProfiler()->startProfiler();
 }
