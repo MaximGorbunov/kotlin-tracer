@@ -20,10 +20,11 @@ list(FILTER ALL_PROTO_SOURCES EXCLUDE REGEX ".*grpc\\.pb\\.cc$")
 add_library(perfetto_protos STATIC ${ALL_PROTO_SOURCES})
 target_link_libraries(perfetto_protos PUBLIC protobuf::libprotobuf)
 target_include_directories(perfetto_protos PUBLIC ./)
+target_compile_options(perfetto_protos PRIVATE "-fPIC")
 
 add_library(${NAME} SHARED ${SOURCES_CPP})
 target_compile_options(${NAME} PRIVATE
-        "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu"
+        "-O3" "-Werror" "-Wall" "-Wpedantic" "-Wextra" "-Wshadow" "-fexceptions" "-Wnon-virtual-dtor" "-Wno-unused-parameter" "-Wno-gnu" "-Wno-deprecated-declarations"
         "$<$<CONFIG:DEBUG>:-Og;>"
 )
 

@@ -51,8 +51,20 @@ void JVM::addCurrentThread(::jthread thread) {
   JNIEnv *env_id;
   java_vm_->GetEnv(reinterpret_cast<void **>(&env_id), JNI_VERSION_10);
   pthread_t currentThread = pthread_self();
+#ifdef __APPLE__
     auto stack_high = reinterpret_cast<uint64_t>(pthread_get_stackaddr_np(currentThread));
     auto stack_lo= stack_high - pthread_get_stacksize_np(currentThread);
+#endif
+#ifdef __linux__
+    pthread_attr_t attr;
+    pthread_getattr_np(currentThread, &attr);
+    void* stack_addr;
+    size_t stack_size;
+    pthread_attr_getstack(&attr, &stack_addr, &stack_size);
+    pthread_attr_destroy(&attr);
+    auto stack_lo = reinterpret_cast<uint64_t>(stack_addr);
+    auto stack_high = stack_lo + stack_size;
+#endif
   jvmtiThreadInfo info{};
   auto err = jvmti_env_->GetThreadInfo(thread, &info);
   logDebug("Added thread: " + std::string(info.name));

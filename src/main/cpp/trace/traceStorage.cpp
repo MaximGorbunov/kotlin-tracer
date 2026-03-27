@@ -1,9 +1,5 @@
 #include "traceStorage.hpp"
 
-#include <mach/mach_init.h>
-#include <mach/mach_port.h>
-#include <mach/thread_act.h>
-#include <mach/thread_info.h>
 #include <memory>
 #include <sys/resource.h>
 #include <thread>
@@ -12,6 +8,10 @@
 #include "../utils/log.h"
 
 #ifdef __APPLE__
+#include <mach/mach_init.h>
+#include <mach/mach_port.h>
+#include <mach/thread_act.h>
+#include <mach/thread_info.h>
 #define RUSAGE_KIND RUSAGE_SELF
 #elif defined(__linux__)
 #define RUSAGE_KIND RUSAGE_THREAD

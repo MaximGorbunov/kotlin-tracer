@@ -172,11 +172,11 @@ static inline void calculate_resource_usage(
   coroutine_info->wall_clock_running_time += (currentTimeNs() - coroutine_info->last_resume);
   auto last_system_time = coroutine_info->last_rusage.ru_stime;
   auto last_user_time = coroutine_info->last_rusage.ru_utime;
+  std::thread::id current_thread_id = std::this_thread::get_id();
 #ifdef __APPLE__
   thread_basic_info_data_t info = {};
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
   mach_port_t thread = mach_thread_self();
-  std::thread::id current_thread_id = std::this_thread::get_id();
 
   kern_return_t kr = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
   if (kr == KERN_SUCCESS) {

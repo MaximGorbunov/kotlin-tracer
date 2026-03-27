@@ -3,6 +3,7 @@
 #include <atomic>
 #include <string>
 #include <sstream>
+#include <cstring>
 #include "../utils/pointerValidation.h"
 #include "utils/log.h"
 
