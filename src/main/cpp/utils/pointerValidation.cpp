@@ -30,7 +30,7 @@ bool is_valid(uint64_t address_ptr) {
 #elif defined(__linux__)
 #include <sys/mman.h>
 #include <cstddef>
-#include <csignal>
+#include "unistd.h"
 
 bool is_valid(uint64_t address_ptr) {
   /* get the page size */
