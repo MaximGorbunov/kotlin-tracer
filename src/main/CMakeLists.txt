@@ -14,6 +14,7 @@ set(NAME "agent")
 
 find_package(Protobuf REQUIRED)
 find_package(absl REQUIRED)
+find_package(utf8_range REQUIRED)
 file(GLOB_RECURSE ALL_PROTO_SOURCES "protos/**/*.pb.cc")
 list(FILTER ALL_PROTO_SOURCES EXCLUDE REGEX ".*grpc\\.pb\\.cc$")
 
@@ -42,10 +43,24 @@ if (NOT APPLE)
     link_libraries("unwind")
 endif(NOT APPLE)
 
-target_link_libraries(${NAME} PRIVATE
+target_link_libraries(${NAME} PUBLIC
         perfetto_protos
+        protobuf::libprotobuf
         absl::log
         absl::log_internal_check_op
         absl::log_internal_message
+        absl::cord
+        absl::cordz_info
+        absl::status
+        absl::statusor
+        absl::strings
+        absl::str_format
+        absl::raw_hash_set
+        absl::hash
+        absl::base
+        absl::synchronization
+        utf8_range::utf8_range
+        utf8_range::utf8_validity
 )
+
 set_property(GLOBAL PROPERTY AGENT_PATH "${CMAKE_CURRENT_BINARY_DIR}/lib${NAME}${CMAKE_SHARED_LIBRARY_SUFFIX}")
