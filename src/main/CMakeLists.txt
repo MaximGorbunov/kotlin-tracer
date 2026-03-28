@@ -44,6 +44,7 @@ if (NOT APPLE)
 endif(NOT APPLE)
 
 target_link_libraries(${NAME} PUBLIC
+        addr2Symbol
         perfetto_protos
         protobuf::libprotobuf
         absl::log
