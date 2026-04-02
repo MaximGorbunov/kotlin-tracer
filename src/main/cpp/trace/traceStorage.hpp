@@ -28,8 +28,6 @@ class TraceStorage {
     TraceTime cpu_system_clock_running_time_us{0};
     uint64_t voluntary_switches{0};
     uint64_t involuntary_switches{0};
-    rusage last_rusage;
-    std::thread::id last_thread;
     std::shared_ptr<ConcurrentList<std::shared_ptr<SuspensionInfo>>> suspensions_list;
     CoroutineInfo(
         const TraceTime& _start, const TraceTime& _end, const TraceTime& a_last_resume,
@@ -45,7 +43,6 @@ class TraceStorage {
           cpu_system_clock_running_time_us(a_cpu_system_clock_running_time_us),
           voluntary_switches(a_voluntary_switches),
           involuntary_switches(a_involuntary_switches),
-          last_rusage(a_last_rusage),
           suspensions_list(std::move(a_suspensions_list)) {}
   };
 

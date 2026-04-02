@@ -50,6 +50,7 @@ class Profiler {
            std::chrono::nanoseconds interval);
   void signal_action(void* ucontext);
   void processTraces();
+  inline void calculate_resource_usage(TraceStorage::CoroutineInfo *coroutine_info);
   std::unique_ptr<StackFrame> processMethodInfo(jmethodID methodId);
   std::unique_ptr<StackFrame> processProfilerMethodInfo(const InstructionInfo& instruction_info);
   std::string unknown_native = std::string("unknown_native");

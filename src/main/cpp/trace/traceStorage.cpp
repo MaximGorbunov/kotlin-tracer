@@ -97,25 +97,9 @@ void TraceStorage::createCoroutineInfo(jlong coroutine_id) {
   auto coroutine_info = std::make_shared<CoroutineInfo>(
       currentTimeNs(), TraceTime{0}, currentTimeNs(), 0, 0, 0, 0, 0, rusage{},
       std::make_shared<ConcurrentList<shared_ptr<SuspensionInfo>>>());
-#ifdef __APPLE__
-  thread_basic_info_data_t info = {};
-  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
-  mach_port_t thread = mach_thread_self();
-
-  kern_return_t kr = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
-  if (kr == KERN_SUCCESS) {
-    coroutine_info->last_rusage.ru_stime.tv_sec = info.system_time.seconds;
-    coroutine_info->last_rusage.ru_stime.tv_usec = info.system_time.microseconds;
-    coroutine_info->last_rusage.ru_utime.tv_sec = info.user_time.seconds;
-    coroutine_info->last_rusage.ru_utime.tv_usec = info.user_time.microseconds;
+  if (!coroutine_info_map_->contains(coroutine_id)) {
+    coroutine_info_map_->insert(coroutine_id, coroutine_info);
   }
-  mach_port_deallocate(mach_task_self(), thread);
-#endif
-#ifdef __linux__
-  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
-#endif
-  coroutine_info->last_thread = std::this_thread::get_id();
-  coroutine_info_map_->insert(coroutine_id, coroutine_info);
 }
 
 shared_ptr<TraceStorage::CoroutineInfo> TraceStorage::getCoroutineInfo(jlong coroutine_id) const {

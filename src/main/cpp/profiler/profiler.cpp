@@ -145,6 +145,8 @@ static inline TraceTime calculate_elapsed_time(const timeval& end, const timeval
                    microseconds.count()};
 }
 
+static thread_local rusage current_rusage_{};
+
 static inline void update_perf_counters(
     const shared_ptr<TraceStorage::CoroutineInfo>& coroutine_info) {
 #ifdef __APPLE__
@@ -154,25 +156,23 @@ static inline void update_perf_counters(
 
   kern_return_t kr = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
   if (kr == KERN_SUCCESS) {
-    coroutine_info->last_rusage.ru_stime.tv_sec = info.system_time.seconds;
-    coroutine_info->last_rusage.ru_stime.tv_usec = info.system_time.microseconds;
-    coroutine_info->last_rusage.ru_utime.tv_sec = info.user_time.seconds;
-    coroutine_info->last_rusage.ru_utime.tv_usec = info.user_time.microseconds;
+    current_rusage_.ru_stime.tv_sec = info.system_time.seconds;
+    current_rusage_.ru_stime.tv_usec = info.system_time.microseconds;
+    current_rusage_.ru_utime.tv_sec = info.user_time.seconds;
+    current_rusage_.ru_utime.tv_usec = info.user_time.microseconds;
   }
   mach_port_deallocate(mach_task_self(), thread);
-  coroutine_info->last_thread = std::this_thread::get_id();
 #endif
 #ifdef __linux__
-  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
+  getrusage(RUSAGE_KIND, &current_rusage_);
 #endif
 }
 
-static inline void calculate_resource_usage(
-    const shared_ptr<TraceStorage::CoroutineInfo>& coroutine_info) {
+
+inline void Profiler::calculate_resource_usage(TraceStorage::CoroutineInfo *coroutine_info) {
   coroutine_info->wall_clock_running_time += (currentTimeNs() - coroutine_info->last_resume);
-  auto last_system_time = coroutine_info->last_rusage.ru_stime;
-  auto last_user_time = coroutine_info->last_rusage.ru_utime;
-  std::thread::id current_thread_id = std::this_thread::get_id();
+  auto last_system_time = current_rusage_.ru_stime;
+  auto last_user_time = current_rusage_.ru_utime;
 #ifdef __APPLE__
   thread_basic_info_data_t info = {};
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -180,33 +180,32 @@ static inline void calculate_resource_usage(
 
   kern_return_t kr = thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&info, &count);
   if (kr == KERN_SUCCESS) {
-    coroutine_info->last_rusage.ru_stime.tv_sec = info.system_time.seconds;
-    coroutine_info->last_rusage.ru_stime.tv_usec = info.system_time.microseconds;
-    auto elapsed_time = calculate_elapsed_time(coroutine_info->last_rusage.ru_stime,
+    current_rusage_.ru_stime.tv_sec = info.system_time.seconds;
+    current_rusage_.ru_stime.tv_usec = info.system_time.microseconds;
+    auto elapsed_time = calculate_elapsed_time(current_rusage_.ru_stime,
                                                last_system_time);
     coroutine_info->cpu_system_clock_running_time_us += elapsed_time;
 
-    coroutine_info->last_rusage.ru_utime.tv_sec = info.user_time.seconds;
-    coroutine_info->last_rusage.ru_utime.tv_usec = info.user_time.microseconds;
-    auto trace_time = calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
+    current_rusage_.ru_utime.tv_sec = info.user_time.seconds;
+    current_rusage_.ru_utime.tv_usec = info.user_time.microseconds;
+    auto trace_time = calculate_elapsed_time(current_rusage_.ru_utime, last_user_time);
     coroutine_info->cpu_user_clock_running_time_us += trace_time;
   }
   mach_port_deallocate(mach_task_self(), thread);
 #endif
 #ifdef __linux__
-  auto last_voluntary_context_switch = coroutine_info->last_rusage.ru_nvcsw;
-  auto last_involuntary_context_switch = coroutine_info->last_rusage.ru_nivcsw;
-  getrusage(RUSAGE_KIND, &coroutine_info->last_rusage);
+  auto last_voluntary_context_switch = current_rusage_.ru_nvcsw;
+  auto last_involuntary_context_switch = current_rusage_.ru_nivcsw;
+  getrusage(RUSAGE_KIND, &current_rusage_);
   coroutine_info->cpu_system_clock_running_time_us +=
-      calculate_elapsed_time(coroutine_info->last_rusage.ru_stime, last_system_time);
+      calculate_elapsed_time(current_rusage_.ru_stime, last_system_time);
   coroutine_info->cpu_user_clock_running_time_us +=
-      calculate_elapsed_time(coroutine_info->last_rusage.ru_utime, last_user_time);
-  coroutine_info->voluntary_switches += coroutine_info->last_rusage.ru_nvcsw -
+      calculate_elapsed_time(current_rusage_.ru_utime, last_user_time);
+  coroutine_info->voluntary_switches += current_rusage_.ru_nvcsw -
                                         last_voluntary_context_switch;
-  coroutine_info->involuntary_switches += coroutine_info->last_rusage.ru_nivcsw -
+  coroutine_info->involuntary_switches += current_rusage_.ru_nivcsw -
                                           last_involuntary_context_switch;
 #endif
-  coroutine_info->last_thread = current_thread_id;
 }
 
 void Profiler::traceStart(jlong coroutine_id) {
@@ -234,8 +233,9 @@ void Profiler::traceEnd(jlong coroutine_id) {
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
   if (coroutine_info == nullptr) {
     logDebug("Found nullptr for c: " + to_string(coroutine_id));
+    return;
   }
-  calculate_resource_usage(coroutine_info);
+  calculate_resource_usage(coroutine_info.get());
   auto finish = currentTimeNs();
   auto traceInfo = findOngoingTrace(coroutine_id);
   traceInfo.end = finish;
@@ -401,10 +401,11 @@ void Profiler::coroutineSuspended(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
 
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
-  if (coroutine_info == nullptr)
+  if (coroutine_info == nullptr) {
     return;
+  }
   if (coroutine_info->last_resume.get() > 0) {
-    calculate_resource_usage(coroutine_info);
+    calculate_resource_usage(coroutine_info.get());
     coroutine_info->last_resume = 0;  // To not count multiple times chain
   }
   ::jthread thread;
@@ -430,8 +431,9 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
   auto thread_info = jvm_->findThread(current_thread);
   current_coroutine_id = coroutine_id;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
-  if (coroutine_info == nullptr)
+  if (coroutine_info == nullptr) {
     return;
+  }
   update_perf_counters(coroutine_info);
   coroutine_info->last_resume = currentTimeNs();
   auto suspensionInfo = storage_.getLastSuspensionInfo(coroutine_id);
@@ -445,10 +447,11 @@ void Profiler::coroutineResumed(jlong coroutine_id) {
 void Profiler::coroutineCompleted(jlong coroutine_id) {
   current_coroutine_id = NOT_FOUND;
   auto coroutine_info = storage_.getCoroutineInfo(coroutine_id);
-  if (coroutine_info == nullptr)
+  if (coroutine_info == nullptr) {
     return;
+  }
   coroutine_info->end = currentTimeNs();
-  calculate_resource_usage(coroutine_info);
+  calculate_resource_usage(coroutine_info.get());
   logDebug("coroutineCompleted " + to_string(coroutine_id) + '\n');
 }
 
